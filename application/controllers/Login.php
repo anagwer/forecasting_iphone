@@ -26,9 +26,10 @@ class Login extends CI_Controller {
 
         if ($get_user) {
             if (password_verify($password, $get_user->password)) {
-                $session = [
+                 $session = [
                     'id_user' => $get_user->id_user,
                     'username' => $get_user->username,
+                    'role' => $get_user->role,
                     'jam_masuk' => date('H:i:s')
                 ];
 

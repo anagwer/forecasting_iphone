@@ -376,6 +376,8 @@ function displayResults(data, warnings) {
     });
 
     tablesHtml += `
+      </tbody>
+      <tfoot>
         <tr style="background:var(--green-subtle); font-weight:bold;">
           <td style="padding:6px 12px; color:var(--green);">⬡ PREDIKSI DEPAN</td>
           <td style="padding:6px 12px; text-align:right; color:var(--green);">${Math.round(d.forecast_adj).toLocaleString()}</td>
@@ -384,7 +386,8 @@ function displayResults(data, warnings) {
             Seasonal Indeks: ${d.seasonal_idx.toFixed(3)} &nbsp;·&nbsp; Safety Stock Buffer: +${d.safety_stock} unit &nbsp;·&nbsp; Saran Stok Akhir: <strong style="color:var(--green)">${d.rec_qty} unit</strong>
           </td>
         </tr>
-      </tbody></table></div></div></div>
+      </tfoot>
+      </table></div></div></div>
     `;
   });
   document.getElementById('calculation-tables-wrapper').innerHTML = tablesHtml;

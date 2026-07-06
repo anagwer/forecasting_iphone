@@ -609,6 +609,98 @@ select.form-input { cursor: pointer; }
 }
 .pulsing { animation: pulse 1.2s ease infinite; }
 
+/* ── DATATABLES CUSTOM DARK STYLES ───────────────── */
+.dataTables_wrapper {
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  width: 100%;
+}
+.dataTables_wrapper .row {
+  margin-right: 0;
+  margin-left: 0;
+}
+.dataTables_wrapper .col-sm-12 {
+  padding-right: 0;
+  padding-left: 0;
+}
+.dataTables_wrapper .dataTables_length,
+.dataTables_wrapper .dataTables_filter {
+  padding: 12px 16px;
+  color: var(--text-secondary);
+}
+.dataTables_wrapper .dataTables_length label,
+.dataTables_wrapper .dataTables_filter label {
+  margin-bottom: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.dataTables_wrapper .dataTables_length select {
+  background: var(--bg-canvas);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  padding: 4px 8px;
+  border-radius: var(--radius);
+  outline: none;
+  font-family: var(--font-mono);
+}
+.dataTables_wrapper .dataTables_length select option {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+.dataTables_wrapper .dataTables_filter input {
+  background: var(--bg-canvas);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  padding: 6px 12px;
+  border-radius: var(--radius);
+  outline: none;
+  transition: border-color .15s;
+}
+.dataTables_wrapper .dataTables_filter input:focus {
+  border-color: var(--accent-blue);
+}
+.dataTables_wrapper .dataTables_info {
+  padding: 16px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.dataTables_wrapper .dataTables_paginate {
+  padding: 12px 16px;
+}
+.dataTables_wrapper .pagination {
+  margin: 0;
+  display: flex;
+  gap: 4px;
+}
+.dataTables_wrapper .page-item .page-link {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  padding: 5px 10px;
+  border-radius: var(--radius);
+  font-size: 12px;
+  text-decoration: none;
+  transition: background .12s, border-color .12s;
+}
+.dataTables_wrapper .page-item:hover .page-link {
+  background: var(--border-muted);
+  border-color: var(--text-muted);
+}
+.dataTables_wrapper .page-item.active .page-link {
+  background: var(--accent-blue-subtle);
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+  font-weight: 600;
+}
+.dataTables_wrapper .page-item.disabled .page-link {
+  background: transparent;
+  border-color: var(--border-muted);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
 /* ── RESPONSIVE ─────────────────────────── */
 @media (max-width: 900px) {
   .layout { grid-template-columns: 1fr; }

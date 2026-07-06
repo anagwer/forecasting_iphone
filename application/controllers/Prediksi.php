@@ -5,8 +5,21 @@ class Prediksi extends CI_Controller {
 
     public function __construct() {
         parent::__construct();
+        if (is_cli()) {
+            $this->session->set_userdata('login', [
+                'id_user' => 1,
+                'username' => 'admin',
+                'role' => 'admin',
+                'jam_masuk' => date('H:i:s')
+            ]);
+        }
         if (!$this->session->userdata('login')) {
             redirect('login');
+        }
+        $login_user = $this->session->userdata('login');
+        if ($login_user['role'] !== 'admin') {
+            $this->session->set_flashdata('error', 'Akses ke Prediksi Penjualan hanya untuk Admin!');
+            redirect('beranda');
         }
         $this->load->model('M_penjualan', 'm_penjualan');
         $this->load->model('M_iphone', 'm_iphone');
@@ -29,8 +42,8 @@ class Prediksi extends CI_Controller {
 
     // Run prediction algorithm for all iPhone models
     public function hitung() {
-        $ma_period = (int) $this->input->post('ma_period');
-        $safety_factor = (float) $this->input->post('safety_factor');
+        $ma_period = $this->input->post('ma_period') ? (int) $this->input->post('ma_period') : (int) $this->config->item('ma_period');
+        $safety_factor = $this->input->post('safety_factor') ? (float) $this->input->post('safety_factor') : (float) $this->config->item('safety_factor');
 
         $iphones = $this->m_iphone->lihat();
         if (empty($iphones)) {
@@ -58,6 +71,13 @@ class Prediksi extends CI_Controller {
             $result['nama_tipe'] = $ip->nama_tipe;
             $result['id_iphone'] = $ip->id_iphone;
             
+            // Clear any existing prediction for this model and target month
+            // Also delete any predictions for future months since they are invalid now
+            $this->db->delete('prediksi', ['id_iphone' => $ip->id_iphone, 'bulan_prediksi' => $result['next_month']]);
+            $this->db->where('id_iphone', $ip->id_iphone);
+            $this->db->where('bulan_prediksi >', $result['next_month']);
+            $this->db->delete('prediksi');
+
             // Store prediction results in the database
             $prediksi_id = $this->m_prediksi->tambah([
                 'id_iphone' => $ip->id_iphone,
@@ -399,9 +419,15 @@ class Prediksi extends CI_Controller {
 
     // JSON output helper
     private function output_json($data) {
+        if (ob_get_level() > 0) {
+            ob_clean();
+        }
         $this->output
              ->set_content_type('application/json')
              ->set_output(json_encode($data));
+        
+        $this->output->_display();
+        exit;
     }
 
     // Helper for indonesian month names

@@ -73,6 +73,7 @@
             <tr>
               <th style="width: 50px; text-align: center;">No</th>
               <th>Username</th>
+              <th>Role</th>
               <th>Dibuat Pada</th>
               <th style="width: 130px; text-align: center;">Aksi</th>
             </tr>
@@ -82,10 +83,15 @@
               <tr>
                 <td style="text-align: center; font-family: var(--font-mono); color: var(--text-muted);"><?= $no++ ?></td>
                 <td style="font-weight: 600; color: var(--text-primary); font-family: var(--font-mono);"><?= $row->username ?></td>
+                <td>
+                  <span class="label-badge <?= $row->role === 'admin' ? 'green' : 'yellow' ?>" style="font-size: 10px; font-weight: bold; padding: 2px 6px;">
+                    <?= strtoupper($row->role) ?>
+                  </span>
+                </td>
                 <td style="font-size: 12px; color: var(--text-secondary);"><?= date('d M Y, H:i', strtotime($row->created_at)) ?></td>
                 <td style="text-align: center;">
                   <div style="display: inline-flex; gap: 6px;">
-                    <button class="nav-btn" onclick="openEditUserModal(<?= $row->id_user ?>, '<?= htmlspecialchars($row->username, ENT_QUOTES) ?>')" style="padding: 2px 8px; font-size: 10px;">
+                    <button class="nav-btn" onclick="openEditUserModal(<?= $row->id_user ?>, '<?= htmlspecialchars($row->username, ENT_QUOTES) ?>', '<?= $row->role ?>')" style="padding: 2px 8px; font-size: 10px;">
                       Edit
                     </button>
                     <a href="<?= base_url('setting/hapus_user/' . $row->id_user) ?>" class="nav-btn" onclick="return confirm('Apakah Anda yakin ingin menghapus user ini?')" style="padding: 2px 8px; font-size: 10px; color: var(--red); border-color: var(--red)44;">
@@ -120,6 +126,13 @@
           <label class="form-label" for="password">Password</label>
           <input type="password" class="form-input" id="password" name="password" placeholder="Masukkan password akun" required>
         </div>
+        <div class="form-group">
+          <label class="form-label" for="role">Role / Hak Akses</label>
+          <select class="form-input" id="role" name="role" required>
+            <option value="karyawan" selected>Karyawan (Akses Terbatas)</option>
+            <option value="admin">Admin (Akses Penuh)</option>
+          </select>
+        </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn-secondary" onclick="closeModal('addUserModal')">Batal</button>
@@ -146,6 +159,13 @@
           <label class="form-label" for="edit_password">Password Baru (Kosongkan jika tidak diubah)</label>
           <input type="password" class="form-input" id="edit_password" name="password" placeholder="Masukkan password baru">
         </div>
+        <div class="form-group">
+          <label class="form-label" for="edit_role">Role / Hak Akses</label>
+          <select class="form-input" id="edit_role" name="role" required>
+            <option value="karyawan">Karyawan (Akses Terbatas)</option>
+            <option value="admin">Admin (Akses Penuh)</option>
+          </select>
+        </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn-secondary" onclick="closeModal('editUserModal')">Batal</button>
@@ -160,9 +180,10 @@ function openAddUserModal() {
   document.getElementById('addUserModal').classList.add('show');
 }
 
-function openEditUserModal(id, username) {
+function openEditUserModal(id, username, role) {
   document.getElementById('edit_username').value = username;
   document.getElementById('edit_password').value = '';
+  document.getElementById('edit_role').value = role;
   document.getElementById('editUserForm').action = '<?= base_url('setting/proses_ubah_user/') ?>' + id;
   document.getElementById('editUserModal').classList.add('show');
 }

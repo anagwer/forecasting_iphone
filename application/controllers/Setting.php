@@ -8,6 +8,11 @@ class Setting extends CI_Controller {
         if (!$this->session->userdata('login')) {
             redirect('login');
         }
+        $login_user = $this->session->userdata('login');
+        if ($login_user['role'] !== 'admin') {
+            $this->session->set_flashdata('error', 'Akses ke Setting & User hanya untuk Admin!');
+            redirect('beranda');
+        }
         $this->load->model('M_user', 'm_user');
         $this->config->load('forecasting');
         $this->data['aktif'] = 'setting';
@@ -66,9 +71,11 @@ class Setting extends CI_Controller {
             redirect('setting');
         }
 
+        $role = $this->input->post('role') ? $this->input->post('role') : 'karyawan';
         $data = [
             'username' => $username,
-            'password' => password_hash($password, PASSWORD_DEFAULT)
+            'password' => password_hash($password, PASSWORD_DEFAULT),
+            'role' => $role
         ];
 
         if ($this->m_user->tambah($data)) {
@@ -99,9 +106,13 @@ class Setting extends CI_Controller {
             redirect('setting');
         }
 
+        $role = $this->input->post('role');
         $data = [
             'username' => $username
         ];
+        if (!empty($role)) {
+            $data['role'] = $role;
+        }
 
         if (!empty($password)) {
             $data['password'] = password_hash($password, PASSWORD_DEFAULT);
@@ -112,6 +123,9 @@ class Setting extends CI_Controller {
             $login_sess = $this->session->userdata('login');
             if ($login_sess['id_user'] == $user_id) {
                 $login_sess['username'] = $username;
+                if (!empty($role)) {
+                    $login_sess['role'] = $role;
+                }
                 $this->session->set_userdata('login', $login_sess);
             }
             $this->session->set_flashdata('success', 'Data User <strong>Berhasil</strong> Diubah!');
