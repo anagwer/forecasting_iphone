@@ -5,9 +5,10 @@ class M_penjualan extends CI_Model {
     protected $_table = 'data_penjualan';
 
     public function lihat() {
-        $this->db->select('data_penjualan.*, iphone.nama_tipe');
+        $this->db->select('data_penjualan.*, iphone.nama_tipe, user.username');
         $this->db->from($this->_table);
         $this->db->join('iphone', 'iphone.id_iphone = data_penjualan.id_iphone', 'left');
+        $this->db->join('user', 'user.id_user = data_penjualan.id_user', 'left');
         $this->db->order_by('tanggal_transaksi', 'DESC');
         $query = $this->db->get();
         return $query->result();

@@ -50,11 +50,13 @@ class Penjualan extends CI_Controller {
             redirect('penjualan');
         }
 
+        $login_user = $this->session->userdata('login');
         $data = [
             'id_penjualan' => $id_penjualan,
             'id_iphone' => $this->input->post('id_iphone'),
             'tanggal_transaksi' => $this->input->post('tanggal_transaksi'),
             'jumlah_terjual' => (int) $this->input->post('jumlah_terjual'),
+            'id_user' => $login_user['id_user']
         ];
 
         if ($this->m_penjualan->tambah($data)) {
@@ -66,10 +68,12 @@ class Penjualan extends CI_Controller {
     }
 
     public function proses_ubah($id) {
+        $login_user = $this->session->userdata('login');
         $data = [
             'id_iphone' => $this->input->post('id_iphone'),
             'tanggal_transaksi' => $this->input->post('tanggal_transaksi'),
             'jumlah_terjual' => (int) $this->input->post('jumlah_terjual'),
+            'id_user' => $login_user['id_user']
         ];
 
         if ($this->m_penjualan->ubah($data, $id)) {

@@ -36,6 +36,7 @@
           <th>Model iPhone</th>
           <th>Tanggal Transaksi</th>
           <th style="text-align: right;">Jumlah Terjual (unit)</th>
+          <th>Input Oleh</th>
           <th style="width: 180px; text-align: center;">Aksi</th>
         </tr>
       </thead>
@@ -48,6 +49,11 @@
               <td style="font-weight: 600; color: var(--text-primary);"><?= $row->nama_tipe ?></td>
               <td style="font-family: var(--font-mono);"><?= date('d F Y', strtotime($row->tanggal_transaksi)) ?></td>
               <td style="text-align: right; font-family: var(--font-mono); font-weight: bold; color: var(--green);"><?= $row->jumlah_terjual ?> unit</td>
+              <td>
+                <span class="label-badge blue" style="font-size: 10px; font-weight: bold; padding: 2px 6px; font-family: var(--font-mono);">
+                  <?= $row->username ? htmlspecialchars($row->username) : '—' ?>
+                </span>
+              </td>
               <td style="text-align: center;">
                 <div style="display: inline-flex; gap: 8px;">
                   <button class="nav-btn" onclick="openEditModal('<?= $row->id_penjualan ?>', '<?= $row->id_iphone ?>', '<?= $row->tanggal_transaksi ?>', <?= $row->jumlah_terjual ?>)" style="padding: 4px 10px; font-size: 11px;">
@@ -62,7 +68,7 @@
           <?php endforeach; ?>
         <?php else : ?>
           <tr>
-            <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 40px 10px;">
+            <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 40px 10px;">
               Belum ada data penjualan historis. Klik tombol "Tambah Transaksi" untuk memulai.
             </td>
           </tr>

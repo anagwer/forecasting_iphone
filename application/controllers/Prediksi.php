@@ -79,8 +79,10 @@ class Prediksi extends CI_Controller {
             $this->db->delete('prediksi');
 
             // Store prediction results in the database
+            $login_user = $this->session->userdata('login');
             $prediksi_id = $this->m_prediksi->tambah([
                 'id_iphone' => $ip->id_iphone,
+                'id_user' => $login_user['id_user'],
                 'periode_n' => $ma_period,
                 'nilai_sma' => $result['forecast_adj'],
                 'nilai_mape' => $result['avg_mape'],

@@ -5,9 +5,10 @@ class M_prediksi extends CI_Model {
     protected $_table = 'prediksi';
 
     public function lihat() {
-        $this->db->select('prediksi.*, iphone.nama_tipe');
+        $this->db->select('prediksi.*, iphone.nama_tipe, user.username');
         $this->db->from($this->_table);
         $this->db->join('iphone', 'iphone.id_iphone = prediksi.id_iphone', 'left');
+        $this->db->join('user', 'user.id_user = prediksi.id_user', 'left');
         $this->db->order_by('prediksi.created_at', 'DESC');
         $query = $this->db->get();
         return $query->result();
