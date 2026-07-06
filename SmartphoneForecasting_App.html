@@ -1,0 +1,1521 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smartphone Forecasting — Moving Average + MAPE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg-canvas:   #0d1117;
+  --bg-surface:  #161b22;
+  --bg-elevated: #1c2128;
+  --bg-input:    #0d1117;
+  --border:      #30363d;
+  --border-muted:#21262d;
+  --text-primary:#e6edf3;
+  --text-secondary:#8b949e;
+  --text-muted:  #484f58;
+  --accent-blue: #2f81f7;
+  --accent-blue-subtle:#1f6feb22;
+  --green:       #3fb950;
+  --green-subtle:#1f6a2022;
+  --yellow:      #d29922;
+  --yellow-subtle:#b2800022;
+  --red:         #f85149;
+  --red-subtle:  #a9220022;
+  --purple:      #bc8cff;
+  --orange:      #ffa657;
+  --radius:      6px;
+  --radius-lg:   10px;
+  --font-mono:   'JetBrains Mono', monospace;
+  --font-sans:   'Sora', sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg-canvas);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+/* ── TOP NAV ─────────────────────────────── */
+.topnav {
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  height: 56px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.nav-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--text-primary);
+  text-decoration: none;
+}
+.nav-logo svg { color: var(--text-primary); }
+.nav-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.nav-breadcrumb a { color: var(--accent-blue); text-decoration: none; }
+.nav-breadcrumb a:hover { text-decoration: underline; }
+.nav-badge {
+  background: var(--accent-blue);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-family: var(--font-mono);
+  letter-spacing: .5px;
+}
+.nav-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.nav-btn {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: background .15s, border-color .15s;
+}
+.nav-btn:hover { background: var(--border-muted); border-color: var(--text-muted); }
+
+/* ── LAYOUT ──────────────────────────────── */
+.layout {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  min-height: calc(100vh - 56px);
+}
+
+/* ── SIDEBAR ─────────────────────────────── */
+.sidebar {
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border);
+  padding: 16px 0;
+  position: sticky;
+  top: 56px;
+  height: calc(100vh - 56px);
+  overflow-y: auto;
+}
+.sidebar-section { margin-bottom: 8px; }
+.sidebar-heading {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 8px 16px 4px;
+  font-family: var(--font-mono);
+}
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 16px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background .12s, color .12s;
+  border-left: 2px solid transparent;
+  user-select: none;
+}
+.sidebar-item:hover { background: var(--bg-elevated); color: var(--text-primary); }
+.sidebar-item.active {
+  background: var(--accent-blue-subtle);
+  color: var(--accent-blue);
+  border-left-color: var(--accent-blue);
+}
+.sidebar-item .icon { width: 16px; height: 16px; opacity: .7; flex-shrink: 0; }
+.sidebar-item.active .icon { opacity: 1; }
+.sidebar-divider { border: none; border-top: 1px solid var(--border-muted); margin: 8px 16px; }
+.sidebar-stat {
+  padding: 8px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+.sidebar-stat-label { color: var(--text-muted); }
+.sidebar-stat-val { font-family: var(--font-mono); font-size: 11px; color: var(--accent-blue); }
+
+/* ── MAIN CONTENT ───────────────────────── */
+.main { padding: 24px 32px; overflow-y: auto; }
+
+/* ── PAGE HEADER ─────────────────────────── */
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+.page-title { font-size: 20px; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; }
+.page-subtitle { font-size: 13px; color: var(--text-secondary); }
+.run-btn {
+  background: var(--green);
+  color: #fff;
+  border: none;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 18px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  transition: opacity .15s, transform .1s;
+  white-space: nowrap;
+}
+.run-btn:hover { opacity: .88; }
+.run-btn:active { transform: scale(.97); }
+.run-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+/* ── SECTION TITLE ───────────────────────── */
+.section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.section-title::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* ── TABLE INPUT ─────────────────────────── */
+.table-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+.table-toolbar {
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+}
+.table-toolbar-right { margin-left: auto; display: flex; gap: 6px; }
+.tb-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background .12s, color .12s;
+}
+.tb-btn:hover { background: var(--bg-canvas); color: var(--text-primary); }
+.tb-btn.primary { border-color: var(--accent-blue); color: var(--accent-blue); }
+.tb-btn.primary:hover { background: var(--accent-blue-subtle); }
+
+.data-table { width: 100%; border-collapse: collapse; }
+.data-table th {
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 12px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .7px;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+.data-table th:first-child { width: 36px; text-align: center; color: var(--border); }
+.data-table td {
+  border-bottom: 1px solid var(--border-muted);
+  padding: 6px 8px;
+  vertical-align: middle;
+}
+.data-table tr:last-child td { border-bottom: none; }
+.data-table tr:hover td { background: var(--bg-elevated); }
+.row-num {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 0 8px;
+  user-select: none;
+}
+.cell-input {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 4px 7px;
+  border-radius: var(--radius);
+  width: 100%;
+  transition: background .12s, border-color .12s;
+  outline: none;
+}
+.cell-input:hover { background: var(--bg-canvas); border-color: var(--border); }
+.cell-input:focus { background: var(--bg-canvas); border-color: var(--accent-blue); }
+.cell-input.month-select {
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238b949e' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  padding-right: 24px;
+}
+select.cell-input option { background: var(--bg-elevated); }
+.cell-input.num { text-align: right; }
+.del-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  line-height: 1;
+  transition: color .12s, background .12s;
+  display: flex;
+  align-items: center;
+}
+.del-btn:hover { color: var(--red); background: var(--red-subtle); }
+
+/* ── PIPELINE ─────────────────────────────── */
+.pipeline {
+  display: flex;
+  gap: 0;
+  margin-bottom: 20px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.pipe-step {
+  flex: 1;
+  padding: 14px 16px;
+  border-right: 1px solid var(--border);
+  position: relative;
+  transition: background .15s;
+}
+.pipe-step:last-child { border-right: none; }
+.pipe-step.active { background: var(--accent-blue-subtle); }
+.pipe-step.done { background: var(--green-subtle); }
+.pipe-step.error { background: var(--red-subtle); }
+.pipe-icon { font-size: 16px; margin-bottom: 4px; }
+.pipe-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  margin-bottom: 2px;
+  font-family: var(--font-mono);
+}
+.pipe-step.active .pipe-name { color: var(--accent-blue); }
+.pipe-step.done .pipe-name { color: var(--green); }
+.pipe-step.error .pipe-name { color: var(--red); }
+.pipe-desc { font-size: 11px; color: var(--text-muted); }
+.pipe-connector {
+  position: absolute;
+  right: -9px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  background: var(--border);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  color: var(--text-muted);
+  z-index: 1;
+  border: 2px solid var(--bg-canvas);
+}
+
+/* ── RESULTS GRID ─────────────────────────── */
+.results-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.result-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  transition: border-color .15s;
+  position: relative;
+  overflow: hidden;
+}
+.result-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+.result-card.green::before { background: var(--green); }
+.result-card.yellow::before { background: var(--yellow); }
+.result-card.red::before { background: var(--red); }
+.result-card:hover { border-color: var(--text-muted); }
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.card-series { font-size: 14px; font-weight: 700; color: var(--text-primary); }
+.label-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-family: var(--font-mono);
+  letter-spacing: .5px;
+}
+.label-badge.green { background: var(--green-subtle); color: var(--green); border: 1px solid var(--green)44; }
+.label-badge.yellow { background: var(--yellow-subtle); color: var(--yellow); border: 1px solid var(--yellow)44; }
+.label-badge.red { background: var(--red-subtle); color: var(--red); border: 1px solid var(--red)44; }
+
+.metric-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.metric {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-muted);
+  border-radius: var(--radius);
+  padding: 9px 11px;
+}
+.metric-label { font-size: 10px; color: var(--text-muted); margin-bottom: 3px; text-transform: uppercase; letter-spacing: .5px; font-family: var(--font-mono); }
+.metric-val { font-size: 18px; font-weight: 700; font-family: var(--font-mono); }
+.metric-val.green { color: var(--green); }
+.metric-val.yellow { color: var(--yellow); }
+.metric-val.red { color: var(--red); }
+.metric-val.blue { color: var(--accent-blue); }
+.metric-val.orange { color: var(--orange); }
+.metric-unit { font-size: 10px; color: var(--text-muted); font-family: var(--font-mono); }
+
+.rec-box {
+  background: var(--bg-elevated);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.55;
+  border-left: 3px solid var(--border);
+  margin-bottom: 8px;
+}
+.rec-box.green { border-left-color: var(--green); }
+.rec-box.yellow { border-left-color: var(--yellow); }
+.rec-box.red { border-left-color: var(--red); }
+.rec-box strong { color: var(--text-primary); font-weight: 600; }
+
+/* ── CHART AREA ──────────────────────────── */
+.chart-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  margin-bottom: 20px;
+}
+.chart-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+.chart-subtitle { font-size: 12px; color: var(--text-muted); margin-bottom: 16px; font-family: var(--font-mono); }
+.chart-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0;
+}
+.chart-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 7px 14px;
+  cursor: pointer;
+  margin-bottom: -1px;
+  transition: color .12s, border-color .12s;
+}
+.chart-tab:hover { color: var(--text-primary); }
+.chart-tab.active { color: var(--accent-blue); border-bottom-color: var(--accent-blue); }
+.chart-wrap { position: relative; height: 260px; }
+
+/* ── LOG / COMMIT STYLE ──────────────────── */
+.log-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+.log-header {
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 16px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.log-entry {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--border-muted);
+  font-size: 12px;
+  font-family: var(--font-mono);
+  transition: background .1s;
+}
+.log-entry:hover { background: var(--bg-elevated); }
+.log-entry:last-child { border-bottom: none; }
+.log-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+.log-dot.green { background: var(--green); }
+.log-dot.yellow { background: var(--yellow); }
+.log-dot.blue { background: var(--accent-blue); }
+.log-dot.gray { background: var(--text-muted); }
+.log-msg { color: var(--text-primary); flex: 1; }
+.log-meta { color: var(--text-muted); font-size: 11px; white-space: nowrap; }
+.log-hash { color: var(--accent-blue); font-size: 11px; margin-left: auto; }
+
+/* ── MAPE TABLE ──────────────────────────── */
+.mape-table { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 12px; }
+.mape-table th {
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border);
+  padding: 7px 12px;
+  text-align: right;
+  color: var(--text-muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  font-weight: 600;
+}
+.mape-table th:first-child { text-align: left; }
+.mape-table td {
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border-muted);
+  text-align: right;
+  color: var(--text-secondary);
+}
+.mape-table td:first-child { text-align: left; color: var(--text-primary); }
+.mape-table tr:hover td { background: var(--bg-elevated); }
+.mape-table tr:last-child td { border-bottom: none; }
+.mape-pill {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+/* ── EMPTY STATE ─────────────────────────── */
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-muted);
+}
+.empty-state svg { opacity: .3; margin-bottom: 12px; }
+.empty-state p { font-size: 13px; margin-bottom: 6px; color: var(--text-secondary); }
+.empty-state small { font-size: 12px; font-family: var(--font-mono); color: var(--text-muted); }
+
+/* ── TOOLTIP ─────────────────────────────── */
+.tooltip-wrap { position: relative; display: inline-block; }
+.tooltip-wrap:hover .tooltip-box { opacity: 1; pointer-events: auto; }
+.tooltip-box {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-canvas);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 10px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .15s;
+  font-family: var(--font-mono);
+  z-index: 50;
+}
+
+/* ── FORMULA BOX ─────────────────────────── */
+.formula-box {
+  background: var(--bg-canvas);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--orange);
+  margin-bottom: 12px;
+  position: relative;
+  overflow-x: auto;
+}
+.formula-label {
+  position: absolute;
+  top: 6px;
+  right: 10px;
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+
+/* ── ANIMATIONS ──────────────────────────── */
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-in { animation: fadeSlideIn .35s ease forwards; }
+@keyframes pulse {
+  0%,100% { opacity: 1; } 50% { opacity: .5; }
+}
+.pulsing { animation: pulse 1.2s ease infinite; }
+
+/* ── SCROLLBAR ──────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* ── RESPONSIVE ─────────────────────────── */
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; }
+  .sidebar { display: none; }
+  .results-grid { grid-template-columns: 1fr; }
+  .main { padding: 16px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ── TOP NAV ── -->
+<nav class="topnav">
+  <a href="#" class="nav-logo">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/>
+    </svg>
+    Smartphone Forecasting
+  </a>
+  <div class="nav-breadcrumb">
+    <span>/</span>
+    <a href="#">forecasting-engine</a>
+    <span>/</span>
+    <span>moving-average-mape</span>
+  </div>
+  <span class="nav-badge">v2.1.0</span>
+  <div class="nav-right">
+    <button class="nav-btn" onclick="loadSampleData()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Load Sample
+    </button>
+    <button class="nav-btn" onclick="exportCSV()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      Export CSV
+    </button>
+  </div>
+</nav>
+
+<div class="layout">
+
+<!-- ── SIDEBAR ── -->
+<aside class="sidebar">
+  <div class="sidebar-section">
+    <div class="sidebar-heading">Navigation</div>
+    <div class="sidebar-item active" onclick="showTab('input')">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+      Data Input
+    </div>
+    <div class="sidebar-item" onclick="showTab('process')">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+      Proses Kalkulasi
+    </div>
+    <div class="sidebar-item" onclick="showTab('results')">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      Hasil & Forecast
+    </div>
+    <div class="sidebar-item" onclick="showTab('recommend')">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      Rekomendasi
+    </div>
+  </div>
+
+  <hr class="sidebar-divider">
+
+  <div class="sidebar-section">
+    <div class="sidebar-heading">Config</div>
+    <div class="sidebar-item" onclick="showTab('config')">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      Parameter MA & MAPE
+    </div>
+  </div>
+
+  <hr class="sidebar-divider">
+
+  <div class="sidebar-section">
+    <div class="sidebar-heading">Status</div>
+    <div class="sidebar-stat"><span class="sidebar-stat-label">Data rows</span><span class="sidebar-stat-val" id="stat-rows">0</span></div>
+    <div class="sidebar-stat"><span class="sidebar-stat-label">MA Period</span><span class="sidebar-stat-val" id="stat-ma">3 bulan</span></div>
+    <div class="sidebar-stat"><span class="sidebar-stat-label">Last run</span><span class="sidebar-stat-val" id="stat-lastrun">—</span></div>
+    <div class="sidebar-stat"><span class="sidebar-stat-label">Avg MAPE</span><span class="sidebar-stat-val" id="stat-mape">—</span></div>
+  </div>
+</aside>
+
+<!-- ── MAIN ── -->
+<main class="main">
+
+  <!-- PAGE HEADER -->
+  <div class="page-header">
+    <div>
+      <div class="page-title">📱 Forecasting Engine</div>
+      <div class="page-subtitle">Moving Average + MAPE · Seri A, B, C · Prediksi Stok Smartphone</div>
+    </div>
+    <button class="run-btn" id="run-btn" onclick="runForecasting()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+      Run Forecasting
+    </button>
+  </div>
+
+  <!-- PIPELINE STATUS -->
+  <div class="pipeline" id="pipeline">
+    <div class="pipe-step" id="pipe-0">
+      <div class="pipe-icon">📥</div>
+      <div class="pipe-name">Input Data</div>
+      <div class="pipe-desc">Masukkan data historis</div>
+      <div class="pipe-connector">▶</div>
+    </div>
+    <div class="pipe-step" id="pipe-1">
+      <div class="pipe-icon">📐</div>
+      <div class="pipe-name">Moving Average</div>
+      <div class="pipe-desc">Hitung MA-N</div>
+      <div class="pipe-connector">▶</div>
+    </div>
+    <div class="pipe-step" id="pipe-2">
+      <div class="pipe-icon">📊</div>
+      <div class="pipe-name">MAPE</div>
+      <div class="pipe-desc">Ukur akurasi</div>
+      <div class="pipe-connector">▶</div>
+    </div>
+    <div class="pipe-step" id="pipe-3">
+      <div class="pipe-icon">🔮</div>
+      <div class="pipe-name">Forecast</div>
+      <div class="pipe-desc">Prediksi bulan depan</div>
+      <div class="pipe-connector">▶</div>
+    </div>
+    <div class="pipe-step" id="pipe-4">
+      <div class="pipe-icon">🏷️</div>
+      <div class="pipe-name">Label & Rec</div>
+      <div class="pipe-desc">Warna + rekomendasi</div>
+    </div>
+  </div>
+
+  <!-- ═══ TAB: DATA INPUT ══════════════════ -->
+  <div id="tab-input">
+    <div class="section-title">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+      Data Penjualan Historis
+    </div>
+
+    <div class="table-card">
+      <div class="table-toolbar">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        data_penjualan.csv
+        <span style="color:var(--text-muted)">·</span>
+        <span id="row-count-label">0 baris</span>
+        <div class="table-toolbar-right">
+          <button class="tb-btn" onclick="addRow()">+ Tambah Baris</button>
+          <button class="tb-btn primary" onclick="loadSampleData()">⬇ Load Contoh</button>
+        </div>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="data-table" id="data-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Bulan</th>
+              <th>Tahun</th>
+              <th>Seri A (unit)</th>
+              <th>Seri B (unit)</th>
+              <th>Seri C (unit)</th>
+              <th>Catatan</th>
+              <th style="width:36px"></th>
+            </tr>
+          </thead>
+          <tbody id="data-tbody"></tbody>
+        </table>
+      </div>
+      <div style="padding:10px 16px;border-top:1px solid var(--border-muted);display:flex;gap:8px;align-items:center;">
+        <button class="tb-btn" onclick="addRow()" style="font-size:12px">+ Add Row</button>
+        <span style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono)">Klik sel untuk edit langsung</span>
+        <button class="tb-btn" style="margin-left:auto;color:var(--red);border-color:var(--red)44" onclick="clearAll()">🗑 Clear All</button>
+      </div>
+    </div>
+
+    <!-- FORMULA REFERENCE -->
+    <div class="section-title" style="margin-top:8px">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>
+      Formula Reference
+    </div>
+    <div class="formula-box">
+      <span class="formula-label">moving average</span>
+      MA(t) = [ Sales(t-1) + Sales(t-2) + ... + Sales(t-N) ] / N
+    </div>
+    <div class="formula-box">
+      <span class="formula-label">mape</span>
+      MAPE = (1/n) × Σ |( Aktual(t) - MA(t) ) / Aktual(t)| × 100%
+    </div>
+    <div class="formula-box">
+      <span class="formula-label">safety stock (95% svc level)</span>
+      Safety Stock = Z₀.₉₅ × σ(sales_6mo) = 1.645 × StdDev
+    </div>
+    <div class="formula-box">
+      <span class="formula-label">final recommendation qty</span>
+      Rec_Qty = CEIL( Forecast_Adjusted × 1.15 ) + Safety_Stock
+    </div>
+  </div>
+
+  <!-- ═══ TAB: PROSES ══════════════════════ -->
+  <div id="tab-process" style="display:none">
+    <div class="section-title">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+      Tabel Kalkulasi Moving Average & MAPE
+    </div>
+    <div id="process-content">
+      <div class="empty-state">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <p>Belum ada kalkulasi</p>
+        <small>Klik "Run Forecasting" untuk memulai</small>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ TAB: HASIL ══════════════════════ -->
+  <div id="tab-results" style="display:none">
+    <div class="chart-card">
+      <div class="chart-title">Tren Penjualan & Moving Average</div>
+      <div class="chart-subtitle" id="chart-subtitle">—</div>
+      <div class="chart-tabs">
+        <button class="chart-tab active" onclick="switchChart('all', this)">Semua Seri</button>
+        <button class="chart-tab" onclick="switchChart('A', this)">Seri A</button>
+        <button class="chart-tab" onclick="switchChart('B', this)">Seri B</button>
+        <button class="chart-tab" onclick="switchChart('C', this)">Seri C</button>
+        <button class="chart-tab" onclick="switchChart('mape', this)">MAPE Error</button>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="main-chart"></canvas>
+      </div>
+    </div>
+
+    <div id="results-content">
+      <div class="empty-state">
+        <small>Jalankan forecasting terlebih dahulu</small>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ TAB: REKOMENDASI ══════════════════ -->
+  <div id="tab-recommend" style="display:none">
+    <div id="recommend-content">
+      <div class="empty-state">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        <p>Rekomendasi belum tersedia</p>
+        <small>Jalankan forecasting untuk melihat rekomendasi stok & penjualan</small>
+      </div>
+    </div>
+    <div id="activity-log" style="display:none">
+      <div class="section-title" style="margin-top:20px">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+        Activity Log
+      </div>
+      <div class="log-card">
+        <div class="log-header">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+          commit history · forecasting-engine
+        </div>
+        <div id="log-entries"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ TAB: CONFIG ══════════════════════ -->
+  <div id="tab-config" style="display:none">
+    <div class="section-title">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/></svg>
+      Parameter Forecasting
+    </div>
+    <div class="table-card" style="padding:20px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div>
+          <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:6px;font-family:var(--font-mono)">MA Period (bulan)</label>
+          <input type="number" id="cfg-ma" value="3" min="2" max="6" style="background:var(--bg-canvas);border:1px solid var(--border);color:var(--text-primary);font-family:var(--font-mono);font-size:14px;padding:7px 12px;border-radius:var(--radius);width:100%;outline:none" oninput="updateConfig()">
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Disarankan: 3–4 bulan untuk elektronik</div>
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:6px;font-family:var(--font-mono)">MAPE Threshold Hijau (%)</label>
+          <input type="number" id="cfg-green" value="15" min="5" max="30" style="background:var(--bg-canvas);border:1px solid var(--border);color:var(--text-primary);font-family:var(--font-mono);font-size:14px;padding:7px 12px;border-radius:var(--radius);width:100%;outline:none" oninput="updateConfig()">
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:6px;font-family:var(--font-mono)">MAPE Threshold Kuning (%)</label>
+          <input type="number" id="cfg-yellow" value="30" min="10" max="50" style="background:var(--bg-canvas);border:1px solid var(--border);color:var(--text-primary);font-family:var(--font-mono);font-size:14px;padding:7px 12px;border-radius:var(--radius);width:100%;outline:none" oninput="updateConfig()">
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:6px;font-family:var(--font-mono)">Safety Stock Factor</label>
+          <input type="number" id="cfg-safety" value="1.15" min="1" max="2" step="0.05" style="background:var(--bg-canvas);border:1px solid var(--border);color:var(--text-primary);font-family:var(--font-mono);font-size:14px;padding:7px 12px;border-radius:var(--radius);width:100%;outline:none" oninput="updateConfig()">
+        </div>
+      </div>
+      <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+        <div style="font-size:12px;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:8px">Current config preview</div>
+        <div class="formula-box" id="config-preview" style="margin:0">
+          MA_PERIOD=3 | MAPE_GREEN≤15% | MAPE_YELLOW≤30% | SAFETY_FACTOR=1.15
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════════════════
+const MONTHS = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+let tableData = [];
+let forecastResults = null;
+let mainChart = null;
+let logEntries = [];
+let cfg = { ma: 3, green: 15, yellow: 30, safety: 1.15 };
+
+// ════════════════════════════════════════════════════
+//  NAVIGATION
+// ════════════════════════════════════════════════════
+function showTab(name) {
+  ['input','process','results','recommend','config'].forEach(t => {
+    document.getElementById('tab-'+t).style.display = t===name ? '' : 'none';
+  });
+  document.querySelectorAll('.sidebar-item').forEach(el => el.classList.remove('active'));
+  const idx = {'input':0,'process':1,'results':2,'recommend':3,'config':5}[name] ?? 0;
+  document.querySelectorAll('.sidebar-item')[idx]?.classList.add('active');
+}
+
+// ════════════════════════════════════════════════════
+//  TABLE MANAGEMENT
+// ════════════════════════════════════════════════════
+function renderTable() {
+  const tbody = document.getElementById('data-tbody');
+  tbody.innerHTML = '';
+  tableData.forEach((row, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="row-num">${i+1}</td>
+      <td>
+        <select class="cell-input month-select" onchange="tableData[${i}].month=this.value;updateStat()">
+          ${MONTHS.map(m=>`<option value="${m}" ${row.month===m?'selected':''}>${m}</option>`).join('')}
+        </select>
+      </td>
+      <td>
+        <input class="cell-input num" type="number" value="${row.year}" min="2020" max="2030"
+          onchange="tableData[${i}].year=+this.value;updateStat()">
+      </td>
+      <td><input class="cell-input num" type="number" value="${row.a}" min="0" onchange="tableData[${i}].a=+this.value;updateStat()"></td>
+      <td><input class="cell-input num" type="number" value="${row.b}" min="0" onchange="tableData[${i}].b=+this.value;updateStat()"></td>
+      <td><input class="cell-input num" type="number" value="${row.c}" min="0" onchange="tableData[${i}].c=+this.value;updateStat()"></td>
+      <td><input class="cell-input" type="text" value="${row.note||''}" placeholder="opsional" onchange="tableData[${i}].note=this.value"></td>
+      <td><button class="del-btn" onclick="deleteRow(${i})">✕</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+  updateStat();
+}
+
+function addRow() {
+  const lastYear = tableData.length > 0 ? tableData[tableData.length-1].year : 2024;
+  const lastMonthIdx = tableData.length > 0 ? MONTHS.indexOf(tableData[tableData.length-1].month) : -1;
+  const nextMonthIdx = (lastMonthIdx + 1) % 12;
+  const nextYear = nextMonthIdx === 0 && lastMonthIdx === 11 ? lastYear + 1 : lastYear;
+  tableData.push({ month: MONTHS[nextMonthIdx], year: nextYear, a: 0, b: 0, c: 0, note: '' });
+  renderTable();
+}
+
+function deleteRow(i) {
+  tableData.splice(i, 1);
+  renderTable();
+}
+
+function clearAll() {
+  if (!confirm('Hapus semua data?')) return;
+  tableData = [];
+  renderTable();
+  forecastResults = null;
+}
+
+function updateStat() {
+  document.getElementById('stat-rows').textContent = tableData.length;
+  document.getElementById('row-count-label').textContent = tableData.length + ' baris';
+}
+
+// ════════════════════════════════════════════════════
+//  SAMPLE DATA
+// ════════════════════════════════════════════════════
+function loadSampleData() {
+  tableData = [
+    {month:'Januari',   year:2024, a:42, b:28, c:15, note:'Awal tahun normal'},
+    {month:'Februari',  year:2024, a:38, b:25, c:12, note:'Demand sedikit turun'},
+    {month:'Maret',     year:2024, a:55, b:40, c:22, note:'Ramadhan effect'},
+    {month:'April',     year:2024, a:70, b:52, c:30, note:'Puncak Lebaran'},
+    {month:'Mei',       year:2024, a:45, b:33, c:18, note:'Pasca lebaran'},
+    {month:'Juni',      year:2024, a:40, b:30, c:16, note:'Musim sepi'},
+    {month:'Juli',      year:2024, a:48, b:35, c:20, note:'Pemulihan'},
+    {month:'Agustus',   year:2024, a:52, b:38, c:23, note:'Back-to-school'},
+    {month:'September', year:2024, a:58, b:42, c:25, note:'Pra-holiday'},
+    {month:'Oktober',   year:2024, a:62, b:45, c:28, note:'Pre-holiday buildup'},
+    {month:'November',  year:2024, a:75, b:58, c:35, note:'Harbolnas 11.11'},
+    {month:'Desember',  year:2024, a:80, b:65, c:40, note:'Peak holiday'},
+  ];
+  renderTable();
+  addLog('blue','Sample data loaded','12 baris data 2024');
+}
+
+// ════════════════════════════════════════════════════
+//  CONFIG
+// ════════════════════════════════════════════════════
+function updateConfig() {
+  cfg.ma     = +document.getElementById('cfg-ma').value;
+  cfg.green  = +document.getElementById('cfg-green').value;
+  cfg.yellow = +document.getElementById('cfg-yellow').value;
+  cfg.safety = +document.getElementById('cfg-safety').value;
+  document.getElementById('stat-ma').textContent = cfg.ma + ' bulan';
+  document.getElementById('config-preview').textContent =
+    `MA_PERIOD=${cfg.ma} | MAPE_GREEN≤${cfg.green}% | MAPE_YELLOW≤${cfg.yellow}% | SAFETY_FACTOR=${cfg.safety}`;
+}
+
+// ════════════════════════════════════════════════════
+//  FORECASTING ENGINE
+// ════════════════════════════════════════════════════
+function runForecasting() {
+  if (tableData.length < cfg.ma + 1) {
+    alert(`Minimal ${cfg.ma + 1} baris data diperlukan untuk MA-${cfg.ma}.`);
+    return;
+  }
+
+  const btn = document.getElementById('run-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="pulsing">⏳</span> Processing...';
+
+  // Animasi pipeline
+  animatePipeline(() => {
+    const sales = {
+      A: tableData.map(r => r.a),
+      B: tableData.map(r => r.b),
+      C: tableData.map(r => r.c),
+    };
+    const labels = tableData.map(r => r.month.slice(0,3) + ' ' + String(r.year).slice(2));
+
+    forecastResults = {};
+    ['A','B','C'].forEach(s => {
+      forecastResults[s] = processSeries(s, sales[s], labels);
+    });
+
+    renderProcessTab();
+    renderResultsTab();
+    renderRecommendTab();
+    updateSidebar();
+
+    btn.disabled = false;
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg> Run Forecasting';
+
+    addLog('green','Forecasting complete','MA-'+cfg.ma+' | '+tableData.length+' records processed');
+    showTab('results');
+  });
+}
+
+function processSeries(name, sales, labels) {
+  const n = sales.length;
+  const p = cfg.ma;
+
+  // Moving Average
+  const ma = sales.map((_, i) => {
+    if (i < p) return null;
+    return sales.slice(i-p, i).reduce((a,b)=>a+b,0) / p;
+  });
+
+  // MAPE per periode
+  const mapeArr = [];
+  let mapeSum = 0, mapeCount = 0;
+  for (let i = p; i < n; i++) {
+    const actual = sales[i], pred = ma[i];
+    if (actual !== 0 && pred !== null) {
+      const e = Math.abs((actual - pred) / actual) * 100;
+      mapeArr.push({ idx: i, mape: e });
+      mapeSum += e; mapeCount++;
+    }
+  }
+  const avgMAPE = mapeCount ? mapeSum / mapeCount : 0;
+
+  // Forecast bulan depan (MA murni)
+  const lastP = sales.slice(-p);
+  const forecastRaw = lastP.reduce((a,b)=>a+b,0) / p;
+
+  // Seasonal Index
+  const globalAvg = sales.reduce((a,b)=>a+b,0) / n;
+  const nextPos = n % 12;
+  const sameMonth = [];
+  for (let i = nextPos; i < n; i += 12) sameMonth.push(sales[i]);
+  const seasonalIdx = sameMonth.length && globalAvg
+    ? (sameMonth.reduce((a,b)=>a+b,0)/sameMonth.length) / globalAvg
+    : 1;
+  const forecastAdj = forecastRaw * seasonalIdx;
+
+  // Tren (3 bulan terakhir vs 3 sebelumnya)
+  const recent = sales.slice(-p);
+  const prev   = sales.slice(-p*2, -p);
+  const recentAvg = recent.reduce((a,b)=>a+b,0)/p;
+  const prevAvg   = prev.length ? prev.reduce((a,b)=>a+b,0)/prev.length : recentAvg;
+  const trend     = prevAvg ? ((recentAvg - prevAvg)/prevAvg)*100 : 0;
+
+  // Safety Stock
+  const last6 = sales.slice(-6);
+  const mean6 = last6.reduce((a,b)=>a+b,0)/last6.length;
+  const std6  = Math.sqrt(last6.reduce((s,v)=>s+Math.pow(v-mean6,2),0)/last6.length);
+  const safetyStock = Math.ceil(std6 * 1.645);
+
+  // Recommended Qty
+  let recQty = Math.ceil(forecastAdj * cfg.safety) + safetyStock;
+  if (trend > 10) recQty = Math.ceil(recQty * 1.1);
+  else if (trend < -10) recQty = Math.ceil(recQty * 0.9);
+
+  // Label
+  const label = avgMAPE <= cfg.green && trend >= -5 ? 'GREEN'
+              : avgMAPE <= cfg.yellow               ? 'YELLOW' : 'RED';
+
+  return { name:'Seri '+name, sales, labels, ma, mapeArr, avgMAPE, forecastRaw, forecastAdj, trend, safetyStock, recQty, label, seasonalIdx };
+}
+
+// ════════════════════════════════════════════════════
+//  RENDER: PROCESS TAB
+// ════════════════════════════════════════════════════
+function renderProcessTab() {
+  const container = document.getElementById('process-content');
+  let html = '';
+
+  ['A','B','C'].forEach(s => {
+    const r = forecastResults[s];
+    html += `
+    <div style="margin-bottom:24px">
+      <div class="section-title">📱 Seri ${s} — Kalkulasi MA-${cfg.ma} & MAPE</div>
+      <div class="table-card">
+        <div class="table-toolbar" style="font-size:11px">
+          <span style="color:var(--text-muted)">moving_average_${s.toLowerCase()}.log</span>
+          <span style="color:var(--text-muted)">·</span>
+          <span>MAPE rata-rata: <b style="color:${mapeColor(r.avgMAPE)}">${r.avgMAPE.toFixed(2)}%</b></span>
+        </div>
+        <div style="overflow-x:auto">
+        <table class="mape-table">
+          <thead>
+            <tr>
+              <th style="text-align:left">Bulan</th>
+              <th>Aktual (unit)</th>
+              <th>MA-${cfg.ma} (unit)</th>
+              <th>Error (unit)</th>
+              <th>|Error/Aktual|</th>
+              <th>MAPE (%)</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    r.sales.forEach((actual, i) => {
+      const maVal = r.ma[i];
+      const mapeEntry = r.mapeArr.find(m => m.idx === i);
+      const err = maVal !== null ? Math.abs(actual - maVal) : null;
+      const ratio = (actual && err !== null) ? (err/actual) : null;
+      const isLast = i === r.sales.length - 1;
+
+      html += `<tr style="${isLast?'background:var(--accent-blue-subtle);':''}">
+        <td style="${isLast?'font-weight:700;color:var(--accent-blue)':''}">${r.labels[i]}</td>
+        <td>${actual.toLocaleString()}</td>
+        <td>${maVal !== null ? maVal.toFixed(1) : '<span style="color:var(--text-muted)">—</span>'}</td>
+        <td>${err !== null ? err.toFixed(1) : '<span style="color:var(--text-muted)">—</span>'}</td>
+        <td style="font-family:var(--font-mono)">${ratio !== null ? ratio.toFixed(4) : '<span style="color:var(--text-muted)">—</span>'}</td>
+        <td>${mapeEntry ? `<span style="color:${mapeColor(mapeEntry.mape)};font-weight:600">${mapeEntry.mape.toFixed(2)}%</span>` : '<span style="color:var(--text-muted)">—</span>'}</td>
+        <td>${mapeEntry ? mapeBadge(mapeEntry.mape) : '<span style="color:var(--text-muted);font-size:11px">Belum cukup data</span>'}</td>
+      </tr>`;
+    });
+
+    // Forecast row
+    html += `<tr style="background:var(--green-subtle);font-weight:700">
+      <td style="color:var(--green)">⬡ PREDIKSI DEPAN</td>
+      <td style="color:var(--green)">${Math.round(r.forecastAdj).toLocaleString()}</td>
+      <td style="color:var(--text-muted);font-size:11px">Adjusted</td>
+      <td colspan="4" style="color:var(--text-muted);font-size:11px;font-style:italic">Seasonal idx: ${r.seasonalIdx.toFixed(3)} · Safety Stock: +${r.safetyStock} unit · Rec Qty: ${r.recQty}</td>
+    </tr>`;
+
+    html += `</tbody></table></div></div></div>`;
+  });
+
+  container.innerHTML = html;
+  document.getElementById('tab-process').style.display = '';
+}
+
+// ════════════════════════════════════════════════════
+//  RENDER: RESULTS TAB + CHART
+// ════════════════════════════════════════════════════
+function renderResultsTab() {
+  const labels = forecastResults['A'].labels;
+
+  // Update chart subtitle
+  document.getElementById('chart-subtitle').textContent =
+    `${labels[0]} → ${labels[labels.length-1]} · ${labels.length} periode · MA-${cfg.ma}`;
+
+  // Build initial chart (all series)
+  buildChart('all');
+
+  // Score cards
+  let html = '<div class="results-grid animate-in">';
+  ['A','B','C'].forEach(s => {
+    const r = forecastResults[s];
+    const cls = r.label.toLowerCase();
+    const trendIcon = r.trend>5?'📈':r.trend<-5?'📉':'➡️';
+    const trendStr  = (r.trend>=0?'+':'')+r.trend.toFixed(1)+'%';
+    html += `
+    <div class="result-card ${cls}">
+      <div class="card-header">
+        <div class="card-series">📱 ${r.name}</div>
+        <div class="label-badge ${cls}">${r.label==='GREEN'?'🟢 PROFIT':r.label==='YELLOW'?'🟡 MODERAT':'🔴 RISIKO'}</div>
+      </div>
+      <div class="metric-row">
+        <div class="metric">
+          <div class="metric-label">Forecast</div>
+          <div class="metric-val ${cls}">${Math.round(r.forecastAdj).toLocaleString()}</div>
+          <div class="metric-unit">unit/bulan</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Rec. Stok</div>
+          <div class="metric-val blue">${r.recQty.toLocaleString()}</div>
+          <div class="metric-unit">unit</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Avg MAPE</div>
+          <div class="metric-val ${cls}">${r.avgMAPE.toFixed(1)}%</div>
+          <div class="metric-unit">error</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Tren</div>
+          <div class="metric-val orange">${trendIcon} ${trendStr}</div>
+          <div class="metric-unit">vs 3bln lalu</div>
+        </div>
+      </div>
+    </div>`;
+  });
+  html += '</div>';
+
+  document.getElementById('results-content').innerHTML = html;
+}
+
+function buildChart(mode) {
+  const ctx = document.getElementById('main-chart');
+  if (mainChart) { mainChart.destroy(); mainChart = null; }
+
+  const labels = forecastResults['A'].labels;
+  const colors = { A:'#2f81f7', B:'#3fb950', C:'#bc8cff' };
+  const maColors = { A:'#ffa657', B:'#ff7b72', C:'#79c0ff' };
+
+  let datasets = [];
+
+  if (mode === 'mape') {
+    ['A','B','C'].forEach(s => {
+      const r = forecastResults[s];
+      const mapeData = labels.map((_,i) => {
+        const m = r.mapeArr.find(x=>x.idx===i);
+        return m ? +m.mape.toFixed(2) : null;
+      });
+      datasets.push({ label:`MAPE Seri ${s}`, data: mapeData, borderColor: colors[s],
+        backgroundColor: colors[s]+'33', fill:true, tension:.4, spanGaps:true,
+        pointRadius: mapeData.map(v=>v!==null?4:0), borderWidth:2 });
+    });
+    // Threshold lines
+    datasets.push({ label:`Threshold Hijau (${cfg.green}%)`, data: labels.map(()=>cfg.green),
+      borderColor:'#3fb95066', borderDash:[6,4], borderWidth:1, pointRadius:0, fill:false });
+    datasets.push({ label:`Threshold Kuning (${cfg.yellow}%)`, data: labels.map(()=>cfg.yellow),
+      borderColor:'#d2992266', borderDash:[6,4], borderWidth:1, pointRadius:0, fill:false });
+  } else {
+    const seriesToShow = mode==='all'?['A','B','C']:[mode];
+    seriesToShow.forEach(s => {
+      const r = forecastResults[s];
+      datasets.push({
+        label:`Aktual Seri ${s}`, data: r.sales,
+        borderColor: colors[s], backgroundColor: colors[s]+'22',
+        fill: true, tension:.4, borderWidth:2.5, pointRadius:3,
+      });
+      datasets.push({
+        label:`MA-${cfg.ma} Seri ${s}`, data: r.ma,
+        borderColor: maColors[s], borderDash:[6,3],
+        fill:false, tension:.4, borderWidth:2, pointRadius:0, spanGaps:true,
+      });
+    });
+    // Forecast point
+    const forecastLabels = [...labels, '⬡ Prediksi'];
+    seriesToShow.forEach(s => {
+      const r = forecastResults[s];
+      const fData = [...r.sales.map(()=>null), Math.round(r.forecastAdj)];
+      datasets.push({
+        label:`Forecast ${s}`, data: fData,
+        borderColor: colors[s], backgroundColor: colors[s],
+        pointStyle:'triangle', pointRadius:9, showLine:false,
+      });
+    });
+    datasets.labels = forecastLabels;
+  }
+
+  const chartLabels = datasets.labels || labels;
+
+  mainChart = new Chart(ctx, {
+    type: 'line',
+    data: { labels: chartLabels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode:'index', intersect:false },
+      plugins: {
+        legend: { labels: { color:'#8b949e', font:{ family:"'JetBrains Mono',monospace", size:11 }, boxWidth:14 } },
+        tooltip: { backgroundColor:'#161b22', borderColor:'#30363d', borderWidth:1,
+          titleColor:'#e6edf3', bodyColor:'#8b949e',
+          callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y !== null ? ctx.parsed.y.toFixed(1) : '—'}` }
+        }
+      },
+      scales: {
+        x: { ticks:{color:'#8b949e', font:{family:"'JetBrains Mono',monospace",size:10}}, grid:{color:'#21262d'} },
+        y: { ticks:{color:'#8b949e', font:{family:"'JetBrains Mono',monospace",size:10},callback:v=>v.toLocaleString()}, grid:{color:'#21262d'} }
+      }
+    }
+  });
+}
+
+function switchChart(mode, btn) {
+  document.querySelectorAll('.chart-tab').forEach(t=>t.classList.remove('active'));
+  btn.classList.add('active');
+  buildChart(mode);
+}
+
+// ════════════════════════════════════════════════════
+//  RENDER: REKOMENDASI TAB
+// ════════════════════════════════════════════════════
+function renderRecommendTab() {
+  const r = forecastResults;
+
+  // Tentukan yang terbaik
+  const best = ['A','B','C']
+    .map(s => r[s])
+    .filter(x => x.label==='GREEN')
+    .sort((a,b) => b.forecastAdj - a.forecastAdj);
+
+  const bestHtml = best.length
+    ? `<div style="background:var(--accent-blue-subtle);border:1px solid var(--accent-blue)33;border-radius:var(--radius-lg);padding:14px 18px;margin-bottom:16px;display:flex;align-items:center;gap:12px">
+        <div style="font-size:22px">⭐</div>
+        <div>
+          <div style="font-weight:700;color:var(--accent-blue);font-size:13px;margin-bottom:2px">Prioritas Utama</div>
+          <div style="font-size:13px;color:var(--text-primary)">${best.map(x=>`<b>${x.name}</b>: ${Math.round(x.forecastAdj)} unit/bulan`).join(' &nbsp;·&nbsp; ')}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px;font-family:var(--font-mono)">Akurasi tinggi · Fokuskan modal & display untuk ROI optimal</div>
+        </div>
+       </div>`
+    : `<div style="background:var(--yellow-subtle);border:1px solid var(--yellow)33;border-radius:var(--radius-lg);padding:12px 16px;margin-bottom:16px;font-size:13px;color:var(--yellow)">⚠️ Semua seri dalam kondisi moderat/risiko — stok minimal, prioritaskan clearance</div>`;
+
+  const recStrategies = {
+    GREEN: { stok:'Stok penuh sesuai rekomendasi', jual:'Jual harga normal + upsell aksesori (case, pelindung layar, earphone)', promo:'Tidak perlu promo besar, cukup program loyalitas', risiko:'Rendah' },
+    YELLOW: { stok:'Stok 80% dari rekomendasi', jual:'Bundling produk + cicilan 0% untuk percepat perputaran', promo:'Flash sale ringan, cashback 5-10%', risiko:'Sedang — monitor mingguan' },
+    RED: { stok:`Maks 60% dari rekomendasi, utamakan clearance stok lama`, jual:'Diskon agresif 10-20%, alihkan anggaran ke seri lebih prospektif', promo:'Clearance event, bundling wajib aksesori', risiko:'Tinggi — hindari overstock' },
+  };
+
+  let cards = '';
+  ['A','B','C'].forEach(s => {
+    const res = r[s];
+    const cls = res.label.toLowerCase();
+    const rec = recStrategies[res.label];
+    const trendIcon = res.trend>5?'📈':res.trend<-5?'📉':'➡️';
+
+    cards += `
+    <div class="result-card ${cls}" style="margin-bottom:14px">
+      <div class="card-header">
+        <div class="card-series">📱 ${res.name}</div>
+        <div class="label-badge ${cls}">${res.label==='GREEN'?'🟢 PROFIT':res.label==='YELLOW'?'🟡 MODERAT':'🔴 RISIKO'}</div>
+      </div>
+      <div class="metric-row" style="grid-template-columns:repeat(4,1fr)">
+        <div class="metric"><div class="metric-label">Forecast</div><div class="metric-val ${cls}">${Math.round(res.forecastAdj)}</div><div class="metric-unit">unit</div></div>
+        <div class="metric"><div class="metric-label">Safety Stock</div><div class="metric-val blue">+${res.safetyStock}</div><div class="metric-unit">buffer</div></div>
+        <div class="metric"><div class="metric-label">Rec. Stok</div><div class="metric-val blue">${res.recQty}</div><div class="metric-unit">unit total</div></div>
+        <div class="metric"><div class="metric-label">Tren 3bln</div><div class="metric-val orange">${trendIcon} ${(res.trend>=0?'+':'')+res.trend.toFixed(1)}%</div><div class="metric-unit">growth</div></div>
+      </div>
+      <div class="rec-box ${cls}"><strong>📦 Stok:</strong> ${rec.stok}</div>
+      <div class="rec-box ${cls}"><strong>🛒 Strategi Jual:</strong> ${rec.jual}</div>
+      <div class="rec-box ${cls}"><strong>📣 Promosi:</strong> ${rec.promo}</div>
+      <div class="rec-box ${cls}" style="font-size:11px"><strong>⚠️ Risiko:</strong> ${rec.risiko} &nbsp;·&nbsp; <strong>MAPE:</strong> ${res.avgMAPE.toFixed(1)}% &nbsp;·&nbsp; <strong>Seasonal Idx:</strong> ${res.seasonalIdx.toFixed(3)}</div>
+    </div>`;
+  });
+
+  document.getElementById('recommend-content').innerHTML = `
+    <div class="section-title">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      Rekomendasi Stok & Penjualan
+    </div>
+    ${bestHtml}
+    ${cards}
+    <div style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;font-size:11px;color:var(--text-muted);font-family:var(--font-mono)">
+      🔢 Formula: MA-${cfg.ma} · Threshold MAPE Hijau≤${cfg.green}% Kuning≤${cfg.yellow}% · Safety Stock Z₀.₉₅=1.645 · Safety Factor=${cfg.safety}
+    </div>
+  `;
+
+  document.getElementById('activity-log').style.display = '';
+}
+
+// ════════════════════════════════════════════════════
+//  SIDEBAR STATS
+// ════════════════════════════════════════════════════
+function updateSidebar() {
+  const now = new Date();
+  document.getElementById('stat-lastrun').textContent =
+    now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0');
+
+  const avgAll = ['A','B','C'].reduce((s,k)=>s+forecastResults[k].avgMAPE, 0)/3;
+  document.getElementById('stat-mape').textContent = avgAll.toFixed(1)+'%';
+}
+
+// ════════════════════════════════════════════════════
+//  PIPELINE ANIMATION
+// ════════════════════════════════════════════════════
+function animatePipeline(done) {
+  for (let i=0;i<5;i++) {
+    const el = document.getElementById('pipe-'+i);
+    el.classList.remove('active','done','error');
+  }
+  let i = 0;
+  function next() {
+    if (i > 0) document.getElementById('pipe-'+(i-1)).classList.add('done');
+    if (i < 5) { document.getElementById('pipe-'+i).classList.add('active'); i++; setTimeout(next, 280); }
+    else done();
+  }
+  next();
+}
+
+// ════════════════════════════════════════════════════
+//  LOG
+// ════════════════════════════════════════════════════
+function addLog(type, msg, detail) {
+  const now = new Date();
+  const ts = now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0')+':'+now.getSeconds().toString().padStart(2,'0');
+  const hash = Math.random().toString(36).slice(2,9);
+  logEntries.unshift({ type, msg, detail, ts, hash });
+
+  const container = document.getElementById('log-entries');
+  container.innerHTML = logEntries.slice(0,8).map(e=>`
+    <div class="log-entry">
+      <div class="log-dot ${e.type}"></div>
+      <div>
+        <div class="log-msg">${e.msg}</div>
+        <div style="font-size:10px;color:var(--text-muted)">${e.detail}</div>
+      </div>
+      <div style="text-align:right">
+        <div class="log-hash">${e.hash}</div>
+        <div class="log-meta">${e.ts}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ════════════════════════════════════════════════════
+//  HELPERS
+// ════════════════════════════════════════════════════
+function mapeColor(v) {
+  return v <= cfg.green ? '#3fb950' : v <= cfg.yellow ? '#d29922' : '#f85149';
+}
+function mapeBadge(v) {
+  const cls = v <= cfg.green ? 'green' : v <= cfg.yellow ? 'yellow' : 'red';
+  const label = v <= cfg.green ? '✓ Akurat' : v <= cfg.yellow ? '~ Cukup' : '✗ Rendah';
+  const bg = { green:'var(--green-subtle)', yellow:'var(--yellow-subtle)', red:'var(--red-subtle)' }[cls];
+  const fg = { green:'var(--green)', yellow:'var(--yellow)', red:'var(--red)' }[cls];
+  return `<span style="background:${bg};color:${fg};padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700">${label}</span>`;
+}
+
+function exportCSV() {
+  if (!forecastResults) { alert('Jalankan forecasting dahulu.'); return; }
+  let csv = 'Bulan,Tahun,Seri A Aktual,Seri B Aktual,Seri C Aktual,MA-A,MA-B,MA-C,Catatan\n';
+  tableData.forEach((row,i) => {
+    const maA = forecastResults['A'].ma[i], maB = forecastResults['B'].ma[i], maC = forecastResults['C'].ma[i];
+    csv += `${row.month},${row.year},${row.a},${row.b},${row.c},${maA!==null?maA.toFixed(1):''},${maB!==null?maB.toFixed(1):''},${maC!==null?maC.toFixed(1):''},"${row.note}"\n`;
+  });
+  const blob = new Blob([csv], {type:'text/csv'});
+  const a = Object.assign(document.createElement('a'), { href:URL.createObjectURL(blob), download:'forecasting_result.csv' });
+  a.click();
+}
+
+// ════════════════════════════════════════════════════
+//  INIT
+// ════════════════════════════════════════════════════
+loadSampleData();
+addLog('blue', 'App initialized', 'Forecasting Engine v2.1.0 ready');
+</script>
+</body>
+</html>
