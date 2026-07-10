@@ -127,15 +127,48 @@ class Prediksi extends CI_Controller {
         ]);
     }
 
+    /**
+     * Menjalankan logika peramalan (forecasting) menggunakan Simple Moving Average (SMA),
+     * Penyesuaian Musiman (Seasonal Adjustment), Tren Penjualan, Evaluasi Error (MAPE),
+     * serta perhitungan Safety Stock untuk menentukan rekomendasi jumlah pengadaan stok.
+     * 
+     * RUMUS & ALUR PERHITUNGAN:
+     * 1. Simple Moving Average (SMA):
+     *    SMA_t = (Sales_{t-1} + Sales_{t-2} + ... + Sales_{t-n}) / n
+     * 
+     * 2. Absolute Percentage Error (APE) - Mengukur kesalahan peramalan per bulan:
+     *    APE_t = (|Aktual_t - SMA_t| / Aktual_t) * 100%
+     * 
+     * 3. Mean Absolute Percentage Error (MAPE) - Mengukur rata-rata kesalahan keseluruhan:
+     *    MAPE = (1 / m) * Σ APE_t
+     * 
+     * 4. Indeks Musiman (Seasonal Index):
+     *    Indeks Musiman = Rata-rata Penjualan Bulan Target / Rata-rata Penjualan Global
+     *    Adjusted Forecast = Raw Forecast * Indeks Musiman
+     * 
+     * 5. Tren Penjualan (Trend):
+     *    Trend = ((Rata-rata n-bulan Terkini - Rata-rata n-bulan Sebelumnya) / Rata-rata n-bulan Sebelumnya) * 100%
+     * 
+     * 6. Safety Stock (95% Service Level):
+     *    Standar Deviasi (σ) dari 6 bulan terakhir = √ ( Σ(Sales_i - Mean_6)^2 / 6 )
+     *    Safety Stock = ⌈ σ * 1.645 ⌉   (Nilai Z=1.645 mewakili tingkat pelayanan 95%)
+     * 
+     * 7. Rekomendasi Stok Akhir (Suggested Stock Quantity):
+     *    Rec_Qty = ⌈ Forecast_Adjusted * Safety_Factor ⌉ + Safety_Stock
+     *    - Jika Tren Naik > 10%: Rec_Qty = ⌈ Rec_Qty * 1.1 ⌉ (+10% untuk mengantisipasi demand naik)
+     *    - Jika Tren Turun < -10%: Rec_Qty = ⌈ Rec_Qty * 0.9 ⌉ (-10% untuk menghindari overstock)
+     */
     private function run_forecasting_logic($id_iphone, $sales_data, $ma_period, $safety_factor) {
         $sales = [];
         $labels = [];
         $months_raw = [];
+        
+        // 1. Ekstraksi dan penataan data penjualan historis dari database
         foreach ($sales_data as $row) {
             $sales[] = (int) $row->total_terjual;
-            $months_raw[] = $row->bulan_tahun; // YYYY-MM
+            $months_raw[] = $row->bulan_tahun; // Format: YYYY-MM
             
-            // Format labels for charts: e.g. "Jan 24"
+            // Mengubah format bulan untuk label grafik (contoh: "2024-07" menjadi "Jul 24")
             $parts = explode('-', $row->bulan_tahun);
             $year_short = substr($parts[0], 2);
             $month_name = $this->get_month_name_indonesian((int) $parts[1]);
@@ -143,21 +176,27 @@ class Prediksi extends CI_Controller {
         }
 
         $n = count($sales);
+        // Mengisi array awal dengan nilai null untuk periode sebelum data mencukupi n-bulan
         $ma = array_fill(0, $n, null);
         $ape = array_fill(0, $n, null);
         
         $mape_sum = 0;
         $mape_count = 0;
 
-        // Calculate moving average and errors for historical data
+        // 2. Menghitung Simple Moving Average (SMA) dan Absolute Percentage Error (APE) historis
+        // Perhitungan dimulai dari indeks $ma_period karena memerlukan data n-bulan sebelumnya
         for ($i = $ma_period; $i < $n; $i++) {
             $sum = 0;
+            // Menjumlahkan data penjualan sebanyak n-bulan ke belakang
+            // Rumus: Sum = Sales_{i-1} + Sales_{i-2} + ... + Sales_{i-n}
             for ($j = 1; $j <= $ma_period; $j++) {
                 $sum += $sales[$i - $j];
             }
+            // Rumus SMA: Nilai rata-rata bergerak
             $ma[$i] = $sum / $ma_period;
             
-            // Absolute Percentage Error (APE)
+            // Menghitung APE (Absolute Percentage Error) jika penjualan aktual > 0
+            // Rumus: APE_t = ( |Aktual_t - SMA_t| / Aktual_t ) * 100
             if ($sales[$i] > 0) {
                 $err = abs($sales[$i] - $ma[$i]);
                 $ape[$i] = ($err / $sales[$i]) * 100;
@@ -166,25 +205,30 @@ class Prediksi extends CI_Controller {
             }
         }
 
+        // Menghitung rata-rata kesalahan (MAPE) secara keseluruhan
+        // Rumus MAPE = Total APE / Jumlah Periode yang dihitung
         $avg_mape = $mape_count > 0 ? $mape_sum / $mape_count : 0;
 
-        // Calculate raw forecast for next month
+        // 3. Menghitung ramalan mentah (Raw Forecast) untuk bulan depan
+        // Menggunakan rata-rata dari n-bulan terakhir di dalam data historis
         $sum_last = 0;
         for ($i = 0; $i < $ma_period; $i++) {
             $sum_last += $sales[$n - 1 - $i];
         }
         $forecast_raw = $sum_last / $ma_period;
 
-        // Determine next month string
+        // Menentukan string bulan target berikutnya (misal: "2024-08")
         $last_month_str = $months_raw[$n - 1];
         $time = strtotime($last_month_str . '-01');
         $next_time = strtotime('+1 month', $time);
         $next_month = date('Y-m', $next_time);
 
-        // Seasonal Adjustment
+        // 4. Penyesuaian Musiman (Seasonal Adjustment)
+        // Menghitung rata-rata penjualan secara global untuk melihat garis dasar penjualan
         $global_avg = array_sum($sales) / $n;
         $next_month_num = (int) date('m', $next_time);
         
+        // Mengumpulkan data penjualan historis pada bulan kalender yang sama dengan bulan target (misalnya semua bulan Juli)
         $matching_sales = [];
         for ($i = 0; $i < $n; $i++) {
             $month_num = (int) explode('-', $months_raw[$i])[1];
@@ -193,62 +237,75 @@ class Prediksi extends CI_Controller {
             }
         }
 
+        // Rumus Indeks Musiman = Rata-rata Penjualan Bulan Target / Rata-rata Penjualan Global
         $seasonal_idx = 1.0;
         if (count($matching_sales) > 0 && $global_avg > 0) {
             $seasonal_idx = (array_sum($matching_sales) / count($matching_sales)) / $global_avg;
         }
         
+        // Proyeksi setelah dikalikan dengan faktor indeks musiman
+        // Rumus: Adjusted Forecast = Raw Forecast * Seasonal Index
         $forecast_adj = $forecast_raw * $seasonal_idx;
 
-        // Trend calculation (growth last ma_period vs prev ma_period)
+        // 5. Perhitungan Tren (mengukur pertumbuhan n-bulan terakhir vs n-bulan sebelumnya)
         $recent_sales = array_slice($sales, -$ma_period);
         $prev_sales = array_slice($sales, -($ma_period * 2), $ma_period);
         
         $recent_avg = array_sum($recent_sales) / $ma_period;
         $prev_avg = count($prev_sales) > 0 ? array_sum($prev_sales) / count($prev_sales) : $recent_avg;
         
+        // Rumus Tren Persentase: ((Rata-rata Baru - Rata-rata Lama) / Rata-rata Lama) * 100
         $trend = 0.0;
         if ($prev_avg > 0) {
             $trend = (($recent_avg - $prev_avg) / $prev_avg) * 100;
         }
 
-        // Safety Stock calculation (standard deviation of last 6 months * 1.645)
+        // 6. Perhitungan Stok Pengaman (Safety Stock)
+        // Mengambil data penjualan 6 bulan terakhir untuk mengukur variabilitas penjualan
         $last_6_sales = array_slice($sales, -6);
         $count_6 = count($last_6_sales);
         $mean_6 = array_sum($last_6_sales) / $count_6;
         
+        // Menghitung Varian dan Standar Deviasi (σ)
         $variance_sum = 0;
         foreach ($last_6_sales as $val) {
             $variance_sum += pow($val - $mean_6, 2);
         }
         $std_dev = sqrt($variance_sum / $count_6);
+        
+        // Rumus Safety Stock = Standar Deviasi * Z-score (1.645 untuk Service Level 95%)
+        // Pembulatan ke atas menggunakan ceil() agar unit bernilai bulat utuh
         $safety_stock = (int) ceil($std_dev * 1.645);
 
-        // Recommended Quantity
+        // 7. Menentukan Jumlah Rekomendasi Pengadaan Stok Awal
+        // Rumus: Rec Qty = (Adjusted Forecast * Safety Factor) + Safety Stock
         $rec_qty = (int) ceil($forecast_adj * $safety_factor) + $safety_stock;
         
-        // Trend adjustments
+        // Penyesuaian Rekomendasi berdasarkan Tren Penjualan:
+        // - Jika tren naik signifikan (> 10%), tambah stok rekomendasi sebesar 10% (+10%)
+        // - Jika tren turun signifikan (< -10%), kurangi stok rekomendasi sebesar 10% (-10%) untuk cegah overstock
         if ($trend > 10) {
             $rec_qty = (int) ceil($rec_qty * 1.1);
         } elseif ($trend < -10) {
             $rec_qty = (int) ceil($rec_qty * 0.9);
         }
 
-        // Get status label from thresholds
-        $threshold_green = $this->config->item('mape_green');
-        $threshold_yellow = $this->config->item('mape_yellow');
+        // 8. Klasifikasi Kategori Akurasi Berdasarkan Nilai Rata-rata MAPE
+        $threshold_green = $this->config->item('mape_green'); // Nilai batas hijau (sangat akurat)
+        $threshold_yellow = $this->config->item('mape_yellow'); // Nilai batas kuning (cukup akurat)
 
-        $label = 'RED';
+        $label = 'RED'; // Default: Kurang akurat / Risiko tinggi
         if ($avg_mape <= $threshold_green && $trend >= -5) {
-            $label = 'GREEN';
+            $label = 'GREEN'; // Sangat Akurat
         } elseif ($avg_mape <= $threshold_yellow) {
-            $label = 'YELLOW';
+            $label = 'YELLOW'; // Cukup Akurat / Moderat
         }
 
-        // Next month formatted label
+        // Format nama bulan target dalam Bahasa Indonesia (contoh: "Agustus 2024")
         $next_parts = explode('-', $next_month);
         $next_label = $this->get_month_name_indonesian((int) $next_parts[1]) . ' ' . $next_parts[0];
 
+        // Mengembalikan seluruh hasil kalkulasi untuk digunakan oleh controller dan ditampilkan di view
         return [
             'sales' => $sales,
             'labels' => $labels,
@@ -268,25 +325,37 @@ class Prediksi extends CI_Controller {
         ];
     }
 
+    /**
+     * Memperbarui tabel peringkat dan rekomendasi berdasarkan hasil peramalan terbaru
+     * untuk seluruh tipe iPhone pada bulan target prediksi tertentu.
+     * 
+     * ALUR PERINGKAT & REKOMENDASI:
+     * 1. Mengambil data prediksi untuk tipe iPhone pada bulan target.
+     * 2. Menghitung ulang parameter forecasting untuk membuat keterangan rekomendasi stok.
+     * 3. Menyusun saran teks/keterangan bisnis berdasarkan Tren Penjualan dan Label Status MAPE (GREEN, YELLOW, RED).
+     * 4. Mengurutkan (sorting) hasil rekomendasi berdasarkan MAPE terkecil (kesalahan terkecil = akurasi tertinggi).
+     * 5. Menyimpan peringkat (peringkat 1, 2, 3...) ke database rekomendasi.
+     */
     private function update_rankings($bulan_prediksi) {
-        // Fetch all predictions for this prediction month
+        // Ambil semua data hasil prediksi pada bulan target tersebut
         $predictions = $this->m_prediksi->get_all_for_month($bulan_prediksi);
         if (count($predictions) === 0) return;
 
-        // Calculate recommendations for each prediction
         $recs = [];
         foreach ($predictions as $p) {
-            // Re-run standard parameters
+            // Mengambil parameter standar dan menjalankan ulang logika peramalan
             $sales_data = $this->m_penjualan->get_monthly_sales($p->id_iphone);
             $ma_period = $p->periode_n;
             $safety_factor = $this->config->item('safety_factor');
 
             $calc = $this->run_forecasting_logic($p->id_iphone, $sales_data, $ma_period, $safety_factor);
             
-            // Build descriptions
+            // Menyusun keterangan tren dan deskripsi rekomendasi bisnis secara otomatis
             $trend_icon = $calc['trend'] > 5 ? 'naik' : ($calc['trend'] < -5 ? 'turun' : 'stabil');
             $trend_pct = number_format(abs($calc['trend']), 1) . '%';
             $keterangan = "Tren penjualan {$trend_icon} sebesar {$trend_pct}. ";
+            
+            // Memberikan arahan stok dan promosi berdasarkan kategori risiko MAPE
             if ($calc['label'] === 'GREEN') {
                 $keterangan .= "Kondisi pasar stabil dengan akurasi peramalan sangat tinggi. Direkomendasikan menyuplai stok penuh.";
             } elseif ($calc['label'] === 'YELLOW') {
@@ -303,18 +372,19 @@ class Prediksi extends CI_Controller {
             ];
         }
 
-        // Rank by lowest MAPE error (highest accuracy)
+        // Mengurutkan rekomendasi berdasarkan nilai MAPE terkecil (kesalahan terkecil = akurasi tertinggi)
+        // Pengurutan dilakukan secara ascending (<=>)
         usort($recs, function($a, $b) {
             return $a['nilai_mape'] <=> $b['nilai_mape'];
         });
 
-        // Insert recommendations with peringkat (rank)
+        // Memasukkan data rekomendasi beserta peringkatnya (rank) ke dalam database
         $rank = 1;
         foreach ($recs as $rec) {
-            // Delete existing recommendation for this prediction
+            // Menghapus data rekomendasi yang lama untuk prediksi terkait agar tidak duplikat
             $this->m_rekomendasi->clear_by_prediksi($rec['id_prediksi']);
 
-            // Insert new recommendation
+            // Memasukkan data rekomendasi baru (peringkat dimulai dari 1 untuk akurasi terbaik)
             $this->m_rekomendasi->tambah([
                 'id_prediksi' => $rec['id_prediksi'],
                 'peringkat' => $rank++,

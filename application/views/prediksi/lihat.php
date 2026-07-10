@@ -150,38 +150,43 @@
 </div>
 
 <script>
+// Objek chart utama, data peramalan terakhir, dan mode grafik saat ini
 let mainChart = null;
 let lastForecastData = null;
 let lastChartMode = 'all';
 
-// ─── Pipeline Animation ───────────────────────────────
+// ─── Animasi Jalur Proses (Pipeline Animation) ───────────────────────────────
+// Menampilkan indikator visual langkah demi langkah jalannya algoritma peramalan
 function animatePipeline(callback) {
   const steps = 5;
   const pipeline = document.getElementById('pipeline');
-  pipeline.style.display = 'flex';
+  pipeline.style.display = 'flex'; // Menampilkan container jalur proses
 
+  // Reset status kelas pada setiap langkah
   for (let i = 0; i < steps; i++) {
     const el = document.getElementById('pipe-' + i);
     el.classList.remove('active', 'done', 'error');
   }
 
   let current = 0;
+  // Fungsi rekursif untuk menjalankan animasi secara berurutan dengan jeda waktu
   function next() {
     if (current > 0) {
-      document.getElementById('pipe-' + (current - 1)).classList.add('done');
+      document.getElementById('pipe-' + (current - 1)).classList.add('done'); // Langkah sebelumnya selesai
     }
     if (current < steps) {
-      document.getElementById('pipe-' + current).classList.add('active');
+      document.getElementById('pipe-' + current).classList.add('active'); // Langkah saat ini aktif
       current++;
-      setTimeout(next, 280);
+      setTimeout(next, 280); // Berpindah ke langkah berikutnya setelah 280ms
     } else {
-      callback();
+      callback(); // Panggil fungsi callback setelah semua langkah animasi selesai
     }
   }
   next();
 }
 
-// ─── Run Forecasting ──────────────────────────────────
+// ─── Eksekusi Peramalan (Run Forecasting) ──────────────────────────────────
+// Mengirim data form konfigurasi peramalan ke backend menggunakan Fetch API (AJAX)
 function runForecasting(e) {
   e.preventDefault();
 
@@ -189,12 +194,15 @@ function runForecasting(e) {
   const formData = new FormData(form);
   const runBtn = document.getElementById('run-btn');
 
+  // Menonaktifkan tombol sementara proses berjalan untuk menghindari double-click
   runBtn.disabled = true;
   runBtn.innerHTML = '<span class="pulsing">⏳</span> Memproses...';
 
+  // Menyembunyikan hasil lama dan status kosong
   document.getElementById('forecast-results-container').style.display = 'none';
   document.getElementById('empty-state-card').style.display = 'none';
 
+  // Jalankan animasi jalur proses terlebih dahulu, baru kirim request data
   animatePipeline(() => {
     fetch('<?= base_url('prediksi/hitung') ?>', {
       method: 'POST',
@@ -202,21 +210,23 @@ function runForecasting(e) {
     })
     .then(response => response.json())
     .then(res => {
+      // Mengaktifkan kembali tombol proses
       runBtn.disabled = false;
       runBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg> Mulai Peramalan';
 
+      // Tangani jika terjadi error pada perhitungan (misal data penjualan kurang)
       if (res.status === 'error') {
         for (let i = 0; i < 5; i++) {
           const el = document.getElementById('pipe-' + i);
           el.classList.remove('active', 'done');
-          el.classList.add('error');
+          el.classList.add('error'); // Set status merah/error pada visual pipeline
         }
         showToast('❌ ' + res.message, 'error');
         document.getElementById('empty-state-card').style.display = 'block';
         return;
       }
 
-      // Success
+      // Jika berhasil, panggil fungsi untuk merender hasil ke layar
       displayResults(res.data, res.warnings);
     })
     .catch(err => {
@@ -228,13 +238,15 @@ function runForecasting(e) {
   });
 }
 
-// ─── Display Results ──────────────────────────────────
+// ─── Tampilkan Hasil Peramalan (Display Results) ──────────────────────────────
+// Memasukkan dan merender data kalkulasi peramalan dari server ke elemen HTML di halaman
 function displayResults(data, warnings) {
   document.getElementById('forecast-results-container').style.display = 'block';
-  lastForecastData = data;
+  lastForecastData = data; // Simpan data untuk pemindahan/switch jenis grafik nanti
 
   const maPeriod = parseInt(document.getElementById('ma_period').value);
   
+  // Tampilkan peringatan jika ada tipe iPhone yang dilewati karena kekurangan data
   if (warnings && warnings.length > 0) {
     const skippedNames = warnings.map(w => w.nama_tipe).join(', ');
     showToast('⚠️ Beberapa tipe dilewati (kurang data): ' + skippedNames, 'error');
@@ -242,11 +254,11 @@ function displayResults(data, warnings) {
     showToast('✅ Peramalan berhasil dijalankan untuk seluruh model iPhone!', 'success');
   }
 
-  // 1. KPI Scorecards
+  // 1. Render KPI Scorecards (Kartu Ringkasan untuk setiap tipe iPhone)
   let scorecardsHtml = '';
   Object.keys(data).forEach(id => {
     const d = data[id];
-    const labelCls = d.label.toLowerCase();
+    const labelCls = d.label.toLowerCase(); // green, yellow, atau red
     const labelText = d.label === 'GREEN' ? '🟢 AKURAT (Profit)'
                     : d.label === 'YELLOW' ? '🟡 MODERAT (Cukup)'
                     : '🔴 RISIKO (Rendah)';
@@ -277,7 +289,7 @@ function displayResults(data, warnings) {
   });
   document.getElementById('scorecards-container').innerHTML = scorecardsHtml;
 
-  // 2. Chart Subtitle & Tabs
+  // 2. Mengatur Subtitle Grafik & Membuat Tombol Tab Tipe iPhone secara Dinamis
   const firstKey = Object.keys(data)[0];
   const nextLabel = data[firstKey].next_label;
   const numPeriods = data[firstKey].labels.length;
@@ -291,10 +303,10 @@ function displayResults(data, warnings) {
   tabsHtml += `<button class="chart-tab" onclick="switchChart('mape', this)">MAPE Error</button>`;
   document.getElementById('chart-tabs-container').innerHTML = tabsHtml;
 
-  // 3. Render Chart
+  // 3. Render Grafik Penjualan Awal (Menampilkan semua tipe iPhone)
   renderChart(data, 'all');
 
-  // 4. Render Calculation Tables
+  // 4. Render Tabel Kalkulasi Detail beserta Tombol Export File (CSV & PDF)
   let tablesHtml = '';
   Object.keys(data).forEach(id => {
     const d = data[id];
@@ -337,10 +349,11 @@ function displayResults(data, warnings) {
               <tbody>
     `;
 
+    // Looping data penjualan aktual bulanan untuk mengisi baris tabel kalkulasi historis
     d.sales.forEach((actual, i) => {
       const ma_val  = d.ma[i];
       const ape_val = d.ape[i];
-      const isLast  = (i === d.sales.length - 1);
+      const isLast  = (i === d.sales.length - 1); // Menandai baris historis paling akhir
 
       let ma_str    = '<span style="color:var(--text-muted)">—</span>';
       let err_str   = '<span style="color:var(--text-muted)">—</span>';
@@ -348,17 +361,19 @@ function displayResults(data, warnings) {
       let ape_str   = '<span style="color:var(--text-muted)">—</span>';
       let badge_str = '<span style="color:var(--text-muted);font-size:11px;">Belum cukup data</span>';
 
+      // Jika data SMA pada bulan ke-i tersedia, hitung nilai error-nya
       if (ma_val !== null) {
-        const err   = Math.abs(actual - ma_val);
-        const ratio = actual > 0 ? (err / actual) : 0;
+        const err   = Math.abs(actual - ma_val); // Error = |Aktual - Peramalan|
+        const ratio = actual > 0 ? (err / actual) : 0; // Rasio kesalahan dibanding aktual
 
         ma_str    = ma_val.toFixed(1);
         err_str   = err.toFixed(1);
         ratio_str = ratio.toFixed(4);
         ape_str   = `<span style="color:${getMapeColor(ape_val)};font-weight:600">${ape_val.toFixed(2)}%</span>`;
-        badge_str = mapeBadge(ape_val);
+        badge_str = mapeBadge(ape_val); // Badge tingkat akurasi (Akurat, Cukup, Rendah)
       }
 
+      // Memberi warna latar khusus pada baris data historis terakhir
       const rowStyle = isLast ? 'background:var(--accent-blue-subtle);' : '';
       const labelStyle = isLast ? 'font-weight:700;color:var(--accent-blue);' : 'color:var(--text-primary);';
 
@@ -375,6 +390,7 @@ function displayResults(data, warnings) {
       `;
     });
 
+    // Menambahkan baris kaki tabel (Tfoot) untuk menampilkan proyeksi bulan depan secara ringkas
     tablesHtml += `
       </tbody>
       <tfoot>
@@ -392,7 +408,7 @@ function displayResults(data, warnings) {
   });
   document.getElementById('calculation-tables-wrapper').innerHTML = tablesHtml;
 
-  // Initialize DataTables for dynamically generated tables
+  // Inisialisasi plugin jQuery DataTables untuk fitur pencarian, filter, dan pagination dinamis
   $('#calculation-tables-wrapper table.data-table').each(function() {
     if (!$.fn.dataTable.isDataTable(this)) {
       $(this).DataTable({
@@ -412,13 +428,15 @@ function displayResults(data, warnings) {
     }
   });
 
-  // 5. Render Recommendations
+  // 5. Render Rekomendasi Stok Akhir & Strategi Bisnis
   renderRecommendations(data);
 }
 
-// ─── Render Chart ─────────────────────────────────────
+// ─── Render Grafik Penjualan (Render Chart) ─────────────────────────────────────
+// Menggunakan library Chart.js untuk menggambar visualisasi data aktual vs peramalan SMA
 function renderChart(data, mode) {
   const ctx = document.getElementById('main-chart');
+  // Jika grafik sudah ada sebelumnya, hancurkan/destroy agar tidak tumpang tindih
   if (mainChart) {
     mainChart.destroy();
     mainChart = null;
@@ -439,6 +457,7 @@ function renderChart(data, mode) {
   const baseLabels = data[firstKey].labels;
   const nextMonth = data[firstKey].next_month;
 
+  // MODE A: Menampilkan Grafik Kesalahan MAPE (Mean Absolute Percentage Error)
   if (mode === 'mape') {
     chartLabels = baseLabels;
     let idx = 0;
@@ -461,7 +480,7 @@ function renderChart(data, mode) {
       idx++;
     });
 
-    // Add thresholds
+    // Menambahkan garis batas (threshold) evaluasi kualitas peramalan
     datasets.push({
       label: `Threshold Hijau (${threshold_green}%)`,
       data: baseLabels.map(() => threshold_green),
@@ -481,6 +500,7 @@ function renderChart(data, mode) {
       fill: false
     });
 
+  // MODE B: Menampilkan Data Aktual & Hasil Prediksi Besok untuk SEMUA tipe iPhone
   } else if (mode === 'all') {
     chartLabels = [...baseLabels, '⬡ Prediksi (' + nextMonth + ')'];
     
@@ -488,8 +508,8 @@ function renderChart(data, mode) {
     Object.keys(data).forEach(id => {
       const d = data[id];
       const color = colorPalette[idx % colorPalette.length];
-      const forecastData = d.sales.map(() => null);
-      forecastData.push(Math.round(d.forecast_adj));
+      const forecastData = d.sales.map(() => null); // Isi null untuk data historis
+      forecastData.push(Math.round(d.forecast_adj)); // Letakkan data prediksi di akhir
 
       datasets.push({
         label: `Aktual ${d.nama_tipe}`,
@@ -514,6 +534,7 @@ function renderChart(data, mode) {
       idx++;
     });
 
+  // MODE C: Menampilkan Grafik Detail khusus untuk SATU model iPhone terpilih (Aktual vs SMA-n vs Prediksi)
   } else {
     const d = data[mode];
     if (!d) return;
@@ -558,6 +579,7 @@ function renderChart(data, mode) {
     ];
   }
 
+  // Membuat instance Chart.js baru dengan konfigurasi yang ditentukan
   mainChart = new Chart(ctx, {
     type: 'line',
     data: { labels: chartLabels, datasets },
@@ -605,20 +627,24 @@ function renderChart(data, mode) {
   });
 }
 
-// ─── Switch Chart Tabs ────────────────────────────────
+// ─── Pindah Tab Grafik (Switch Chart Tabs) ────────────────────────────────
+// Fungsi saat tombol pilihan tipe iPhone di atas grafik di-klik
 function switchChart(mode, btn) {
   document.querySelectorAll('.chart-tab').forEach(t => t.classList.remove('active'));
-  btn.classList.add('active');
+  btn.classList.add('active'); // Set status tombol aktif
   if (lastForecastData) {
-    renderChart(lastForecastData, mode);
+    renderChart(lastForecastData, mode); // Gambar ulang grafik dengan filter yang baru
   }
 }
 
-// ─── Render Recommendations ───────────────────────────
+// ─── Render Rekomendasi Stok & Penjualan (Render Recommendations) ──────────
+// Menyusun peringkat akurasi peramalan serta melampirkan strategi bisnis (stok, penjualan, promo)
 function renderRecommendations(data) {
   const models = Object.keys(data).map(id => data[id]);
+  // Urutkan model iPhone berdasarkan peringkat dari server (ascending: peringkat 1, 2, 3...)
   models.sort((a, b) => a.peringkat - b.peringkat);
 
+  // Menentukan model iPhone dengan peringkat ke-1 (akurasi tertinggi/terbaik)
   const best = models.find(m => m.peringkat === 1);
   let bestHtml = '';
   if (best) {
@@ -639,6 +665,7 @@ function renderRecommendations(data) {
     `;
   }
 
+  // Template strategi bisnis untuk setiap kategori status (GREEN, YELLOW, RED)
   const recStrategies = {
     GREEN: {
       stok: 'Stok penuh sesuai rekomendasi',
@@ -660,6 +687,7 @@ function renderRecommendations(data) {
     }
   };
 
+  // Membuat susunan kartu rekomendasi untuk seluruh model iPhone
   let cardsHtml = '';
   models.forEach(d => {
     const cls = d.label.toLowerCase();
@@ -718,7 +746,8 @@ function renderRecommendations(data) {
   document.getElementById('recommend-content').innerHTML = bestHtml + cardsHtml + footerHtml;
 }
 
-// ─── Helpers ──────────────────────────────────────────
+// ─── Helpers & Utilities ──────────────────────────────────────────
+// Mendapatkan kode warna berdasarkan nilai error MAPE (Hijau = Bagus, Kuning = Sedang, Merah = Kurang)
 function getMapeColor(val) {
   const g = <?= $this->config->item('mape_green') ?>;
   const y = <?= $this->config->item('mape_yellow') ?>;
@@ -727,6 +756,7 @@ function getMapeColor(val) {
   return 'var(--red)';
 }
 
+// Mendapatkan elemen badge tingkat akurasi MAPE untuk baris tabel kalkulasi
 function mapeBadge(val) {
   const g = <?= $this->config->item('mape_green') ?>;
   const y = <?= $this->config->item('mape_yellow') ?>;
@@ -737,15 +767,18 @@ function mapeBadge(val) {
   return `<span style="background:${bg};color:${fg};border:1px solid ${fg}44;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700">${label}</span>`;
 }
 
+// Melakukan scroll layar otomatis secara halus ke tabel perhitungan detail
 function scrollToCalc() {
   document.getElementById('calculation-tables-wrapper').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+// Melakukan scroll layar otomatis secara halus ke panel rekomendasi stok
 function scrollToRecommend() {
   document.getElementById('recommendation-container').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-// ─── Toast Notification ───────────────────────────────
+// ─── Notifikasi Toast (Toast Notification) ───────────────────────────────
+// Menampilkan pop-up notifikasi melayang di sudut kanan bawah layar selama 4 detik
 function showToast(msg, type) {
   let toast = document.getElementById('forecast-toast');
   if (!toast) {
@@ -775,6 +808,7 @@ function showToast(msg, type) {
   toast.textContent = msg;
 
   clearTimeout(toast._timer);
+  // Hilangkan toast secara otomatis setelah 4 detik
   toast._timer = setTimeout(() => {
     toast.style.opacity = '0';
     toast.style.transform = 'translateY(10px)';
