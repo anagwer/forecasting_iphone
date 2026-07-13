@@ -37,6 +37,21 @@ class Prediksi extends CI_Controller {
         $this->data['ma_period'] = $this->config->item('ma_period');
         $this->data['safety_factor'] = $this->config->item('safety_factor');
 
+        // Calculate default target month (next month after the latest sales transaction)
+        $latest_sales = $this->db->select("DATE_FORMAT(tanggal_transaksi, '%Y-%m') as bulan_tahun")
+                                 ->order_by('tanggal_transaksi', 'DESC')
+                                 ->limit(1)
+                                 ->get('data_penjualan')
+                                 ->row();
+        if ($latest_sales) {
+            $time = strtotime($latest_sales->bulan_tahun . '-01');
+            $next_time = strtotime('+1 month', $time);
+            $default_target = date('Y-m', $next_time);
+        } else {
+            $default_target = date('Y-m');
+        }
+        $this->data['default_target'] = $default_target;
+
         $this->load->view('prediksi/lihat', $this->data);
     }
 
@@ -44,6 +59,23 @@ class Prediksi extends CI_Controller {
     public function hitung() {
         $ma_period = $this->input->post('ma_period') ? (int) $this->input->post('ma_period') : (int) $this->config->item('ma_period');
         $safety_factor = $this->input->post('safety_factor') ? (float) $this->input->post('safety_factor') : (float) $this->config->item('safety_factor');
+        
+        $bulan_target = $this->input->post('bulan_target');
+        if (empty($bulan_target)) {
+            // Default to next month after latest sales transaction
+            $latest_sales = $this->db->select("DATE_FORMAT(tanggal_transaksi, '%Y-%m') as bulan_tahun")
+                                     ->order_by('tanggal_transaksi', 'DESC')
+                                     ->limit(1)
+                                     ->get('data_penjualan')
+                                     ->row();
+            if ($latest_sales) {
+                $time = strtotime($latest_sales->bulan_tahun . '-01');
+                $next_time = strtotime('+1 month', $time);
+                $bulan_target = date('Y-m', $next_time);
+            } else {
+                $bulan_target = date('Y-m');
+            }
+        }
 
         $iphones = $this->m_iphone->lihat();
         if (empty($iphones)) {
@@ -55,14 +87,30 @@ class Prediksi extends CI_Controller {
         $skipped = [];
         $next_month = null;
 
-        foreach ($iphones as $ip) {
-            $sales_data = $this->m_penjualan->get_monthly_sales($ip->id_iphone);
-            $total_months = count($sales_data);
+        // Get the list of N months prior to the target month
+        $required_months = $this->get_previous_months($bulan_target, $ma_period);
 
-            if ($total_months < $ma_period + 1) {
+        foreach ($iphones as $ip) {
+            $sales_data = $this->m_penjualan->get_monthly_sales($ip->id_iphone, $bulan_target);
+            
+            // Map sales data to YYYY-MM
+            $sales_map = [];
+            foreach ($sales_data as $row) {
+                $sales_map[$row->bulan_tahun] = (int) $row->total_terjual;
+            }
+
+            // Check if all required months exist and have positive sales
+            $missing_months = [];
+            foreach ($required_months as $rm) {
+                if (!isset($sales_map[$rm]) || $sales_map[$rm] <= 0) {
+                    $missing_months[] = $this->format_month_indonesian($rm);
+                }
+            }
+
+            if (!empty($missing_months)) {
                 $skipped[] = [
                     'nama_tipe' => $ip->nama_tipe,
-                    'message' => 'Butuh minimal ' . ($ma_period + 1) . ' bulan data (saat ini ' . $total_months . ')'
+                    'message' => 'Data penjualan kosong/kurang pada bulan: ' . implode(', ', $missing_months)
                 ];
                 continue;
             }
@@ -98,11 +146,8 @@ class Prediksi extends CI_Controller {
         }
 
         if (empty($all_results)) {
-            $msg = 'Tidak ada model iPhone yang memiliki cukup data historis untuk peramalan (min ' . ($ma_period + 1) . ' bulan).';
-            if (!empty($skipped)) {
-                $msg .= ' Model yang dilewati: ' . implode(', ', array_map(function($s) { return $s['nama_tipe']; }, $skipped));
-            }
-            $this->output_json(['status' => 'error', 'message' => $msg]);
+            $msg = 'Tidak ada model iPhone yang memiliki cukup data historis untuk peramalan pada bulan target.';
+            $this->output_json(['status' => 'error', 'message' => $msg, 'warnings' => $skipped]);
             return;
         }
 
@@ -290,6 +335,18 @@ class Prediksi extends CI_Controller {
             $rec_qty = (int) ceil($rec_qty * 0.9);
         }
 
+        // Recalculate average MAPE for the sliced period to determine label and return value
+        $ape_sliced = array_slice($ape, -$ma_period);
+        $mape_sum_sliced = 0;
+        $mape_count_sliced = 0;
+        foreach ($ape_sliced as $val) {
+            if ($val !== null) {
+                $mape_sum_sliced += $val;
+                $mape_count_sliced++;
+            }
+        }
+        $avg_mape = $mape_count_sliced > 0 ? $mape_sum_sliced / $mape_count_sliced : 0;
+
         // 8. Klasifikasi Kategori Akurasi Berdasarkan Nilai Rata-rata MAPE
         $threshold_green = $this->config->item('mape_green'); // Nilai batas hijau (sangat akurat)
         $threshold_yellow = $this->config->item('mape_yellow'); // Nilai batas kuning (cukup akurat)
@@ -305,13 +362,19 @@ class Prediksi extends CI_Controller {
         $next_parts = explode('-', $next_month);
         $next_label = $this->get_month_name_indonesian((int) $next_parts[1]) . ' ' . $next_parts[0];
 
+        // Slice the other historical arrays to only keep the last $ma_period months for display
+        $sales_sliced = array_slice($sales, -$ma_period);
+        $labels_sliced = array_slice($labels, -$ma_period);
+        $months_raw_sliced = array_slice($months_raw, -$ma_period);
+        $ma_sliced = array_slice($ma, -$ma_period);
+
         // Mengembalikan seluruh hasil kalkulasi untuk digunakan oleh controller dan ditampilkan di view
         return [
-            'sales' => $sales,
-            'labels' => $labels,
-            'months_raw' => $months_raw,
-            'ma' => $ma,
-            'ape' => $ape,
+            'sales' => $sales_sliced,
+            'labels' => $labels_sliced,
+            'months_raw' => $months_raw_sliced,
+            'ma' => $ma_sliced,
+            'ape' => $ape_sliced,
             'avg_mape' => $avg_mape,
             'forecast_raw' => $forecast_raw,
             'forecast_adj' => $forecast_adj,
@@ -344,7 +407,7 @@ class Prediksi extends CI_Controller {
         $recs = [];
         foreach ($predictions as $p) {
             // Mengambil parameter standar dan menjalankan ulang logika peramalan
-            $sales_data = $this->m_penjualan->get_monthly_sales($p->id_iphone);
+            $sales_data = $this->m_penjualan->get_monthly_sales($p->id_iphone, $bulan_prediksi);
             $ma_period = $p->periode_n;
             $safety_factor = $this->config->item('safety_factor');
 
@@ -402,7 +465,7 @@ class Prediksi extends CI_Controller {
         }
 
         $iphone = $this->m_iphone->lihat_id($pred->id_iphone);
-        $sales_data = $this->m_penjualan->get_monthly_sales($pred->id_iphone);
+        $sales_data = $this->m_penjualan->get_monthly_sales($pred->id_iphone, $pred->bulan_prediksi);
         $calc = $this->run_forecasting_logic($pred->id_iphone, $sales_data, $pred->periode_n, $this->config->item('safety_factor'));
 
         $filename = 'Kalkulasi_Forecasting_' . str_replace(' ', '_', $iphone->nama_tipe) . '_' . $pred->bulan_prediksi . '.csv';
@@ -464,7 +527,7 @@ class Prediksi extends CI_Controller {
         }
 
         $iphone = $this->m_iphone->lihat_id($pred->id_iphone);
-        $sales_data = $this->m_penjualan->get_monthly_sales($pred->id_iphone);
+        $sales_data = $this->m_penjualan->get_monthly_sales($pred->id_iphone, $pred->bulan_prediksi);
         $calc = $this->run_forecasting_logic($pred->id_iphone, $sales_data, $pred->periode_n, $this->config->item('safety_factor'));
 
         // Load DOMPDF
@@ -510,5 +573,24 @@ class Prediksi extends CI_Controller {
             9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember'
         ];
         return $months[$num] ?? '';
+    }
+
+    // Helper to get $n months prior to a target month (format YYYY-MM)
+    private function get_previous_months($target_month, $n) {
+        $months = [];
+        $time = strtotime($target_month . '-01');
+        for ($i = $n; $i >= 1; $i--) {
+            $months[] = date('Y-m', strtotime("-$i month", $time));
+        }
+        return $months;
+    }
+
+    // Helper to format YYYY-MM to Indonesian Month Year
+    private function format_month_indonesian($month_str) {
+        $parts = explode('-', $month_str);
+        if (count($parts) === 2) {
+            return $this->get_month_name_indonesian((int) $parts[1]) . ' ' . $parts[0];
+        }
+        return $month_str;
     }
 }

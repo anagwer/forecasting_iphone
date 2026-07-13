@@ -1,6 +1,30 @@
 <?php $this->load->view('partials/header'); ?>
 <?php $this->load->view('partials/sidebar'); ?>
 
+<!-- Flatpickr Stylesheets & Scripts (Dark Theme & Month Select) -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/monthSelect/style.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/id.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/monthSelect/index.js"></script>
+<style>
+  .flatpickr-input[readonly] {
+    cursor: pointer;
+    background-color: var(--bg-canvas) !important;
+  }
+  .flatpickr-months {
+    background: var(--bg-surface) !important;
+  }
+  .flatpickr-monthSelect-month {
+    color: var(--text-primary) !important;
+  }
+  .flatpickr-monthSelect-month.selected, .flatpickr-monthSelect-month:hover {
+    background: var(--accent-blue) !important;
+    color: #fff !important;
+  }
+</style>
+
 <!-- PAGE HEADER -->
 <div class="page-header">
   <div>
@@ -23,6 +47,11 @@
         <input type="number" class="form-input" id="safety_factor" name="safety_factor" value="<?= $safety_factor ?>" min="1.0" max="2.0" step="0.05" required>
         <small style="font-size: 11px; color: var(--text-muted); margin-top: 4px; display: block;">Faktor pengali buffer pengaman (biasanya 1.15).</small>
       </div>
+      <div>
+        <label class="form-label" for="bulan_target">Bulan Target Prediksi</label>
+        <input type="text" class="form-input" id="bulan_target" name="bulan_target" value="<?= $default_target ?>" placeholder="Pilih Bulan..." required>
+        <small style="font-size: 11px; color: var(--text-muted); margin-top: 4px; display: block;">Bulan yang ingin diprediksi (contoh: Agustus 2025).</small>
+      </div>
       <div style="display: flex; align-items: flex-end;">
         <button type="submit" class="btn-primary" id="run-btn" style="width: 100%; justify-content: center; height: 38px;">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
@@ -36,24 +65,38 @@
 <!-- FORMULA REFERENCE -->
 <div class="section-title" style="margin-bottom: 10px;">
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>
-  Formula Reference
+  Panduan Rumus &amp; Perhitungan
 </div>
-<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;">
-  <div class="formula-box" style="margin-bottom: 0;">
-    <span class="formula-label">moving average</span>
-    MA(t) = [ Sales(t-1) + Sales(t-2) + ... + Sales(t-N) ] / N
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+  <div class="formula-box" style="margin-bottom: 0; padding-top: 25px;">
+    <span class="formula-label">1. Ramalan Mentah (Raw Forecast)</span>
+    <div style="font-weight: 600; margin-bottom: 4px; color: var(--text-primary);">Raw Forecast = Rata-rata Penjualan N-Bulan Terakhir</div>
+    <div style="font-size: 11px; color: var(--text-secondary); line-height: 1.4;">Menggunakan rumus Simple Moving Average (SMA):<br><b>Raw_Forecast = (Sales(t-1) + Sales(t-2) + ... + Sales(t-N)) / N</b></div>
   </div>
-  <div class="formula-box" style="margin-bottom: 0;">
-    <span class="formula-label">mape</span>
-    MAPE = (1/n) × Σ |( Aktual(t) - MA(t) ) / Aktual(t)| × 100%
+  <div class="formula-box" style="margin-bottom: 0; padding-top: 25px;">
+    <span class="formula-label">2. Penyesuaian Musiman (Seasonal Index)</span>
+    <div style="font-weight: 600; margin-bottom: 4px; color: var(--text-primary);">Adjusted Forecast = Raw Forecast × Indeks Musiman</div>
+    <div style="font-size: 11px; color: var(--text-secondary); line-height: 1.4;"><b>Indeks Musiman = Rata-rata Penjualan Bulan Target / Rata-rata Global</b><br>Menyesuaikan proyeksi berdasarkan pola musiman historis pada bulan tersebut.</div>
   </div>
-  <div class="formula-box" style="margin-bottom: 0;">
-    <span class="formula-label">safety stock (95% svc level)</span>
-    Safety Stock = Z₀.₉₅ × σ(sales_6mo) = 1.645 × StdDev
+  <div class="formula-box" style="margin-bottom: 0; padding-top: 25px;">
+    <span class="formula-label">3. Tren Penjualan (Sales Trend)</span>
+    <div style="font-weight: 600; margin-bottom: 4px; color: var(--text-primary);">Tren = ((Rata-rata Terkini - Rata-rata Sebelumnya) / Rata-rata Sebelumnya) × 100%</div>
+    <div style="font-size: 11px; color: var(--text-secondary); line-height: 1.4;">Mengukur persentase pertumbuhan N bulan terakhir dibandingkan dengan N bulan sebelum itu.</div>
   </div>
-  <div class="formula-box" style="margin-bottom: 0;">
-    <span class="formula-label">final recommendation qty</span>
-    Rec_Qty = CEIL( Forecast_Adjusted × Safety_Factor ) + Safety_Stock
+  <div class="formula-box" style="margin-bottom: 0; padding-top: 25px;">
+    <span class="formula-label">4. Akurasi Peramalan (MAPE)</span>
+    <div style="font-weight: 600; margin-bottom: 4px; color: var(--text-primary);">MAPE = (1 / n) × Σ (|Aktual - Prediksi| / Aktual) × 100%</div>
+    <div style="font-size: 11px; color: var(--text-secondary); line-height: 1.4;">Mengukur rata-rata persentase kesalahan. Semakin kecil nilainya, semakin akurat peramalannya.</div>
+  </div>
+  <div class="formula-box" style="margin-bottom: 0; padding-top: 25px;">
+    <span class="formula-label">5. Stok Pengaman (Safety Stock)</span>
+    <div style="font-weight: 600; margin-bottom: 4px; color: var(--text-primary);">Safety Stock = 1.645 × Standar Deviasi (Fluktuasi Penjualan)</div>
+    <div style="font-size: 11px; color: var(--text-secondary); line-height: 1.4;"><b>Standar Deviasi (Fluktuasi):</b> Mengukur seberapa jauh naik-turunnya penjualan 6 bulan terakhir dari rata-ratanya. Nilai 1.645 mewakili Service Level 95%.</div>
+  </div>
+  <div class="formula-box" style="margin-bottom: 0; padding-top: 25px;">
+    <span class="formula-label">6. Rekomendasi Stok Akhir</span>
+    <div style="font-weight: 600; margin-bottom: 4px; color: var(--text-primary);">Rekomendasi = (Adjusted Forecast × Safety Factor) + Safety Stock</div>
+    <div style="font-size: 11px; color: var(--text-secondary); line-height: 1.4;"><b>Penyesuaian Tren:</b> Jika tren naik &gt; 10%, rekomendasi ditambah 10% (+10%). Jika tren turun &lt; -10%, dikurangi 10% (-10%) untuk cegah overstock.</div>
   </div>
 </div>
 
@@ -89,6 +132,9 @@
     <div class="pipe-desc">Kategori &amp; rekomendasi</div>
   </div>
 </div>
+
+<!-- WARNINGS CONTAINER -->
+<div id="warnings-container" style="display: none; margin-bottom: 20px;"></div>
 
 <!-- FORECAST RESULTS DISPLAY -->
 <div id="forecast-results-container" style="display: none;">
@@ -185,6 +231,33 @@ function animatePipeline(callback) {
   next();
 }
 
+// Helper to render red warning alert box when some iPhone models lack data
+function renderWarningsAlert(warnings) {
+  const container = document.getElementById('warnings-container');
+  if (warnings && warnings.length > 0) {
+    let html = `
+      <div class="alert alert-danger" style="display: block; width: 100%; border-radius: var(--radius-lg); margin-bottom: 20px;">
+        <div style="font-weight: 700; margin-bottom: 8px; font-size: 14px;">⚠️ Data Penjualan Kurang / Kosong:</div>
+        <ul style="margin-left: 20px; text-align: left; line-height: 1.6;">
+    `;
+    warnings.forEach(w => {
+      html += `<li><b>${w.nama_tipe}</b>: ${w.message}</li>`;
+    });
+    html += `
+        </ul>
+        <div style="margin-top: 10px; font-size: 12px; font-style: italic; color: var(--text-secondary);">
+          Silakan lengkapi data transaksi penjualan untuk tipe iPhone di atas pada bulan-bulan prasyarat sebelum memulai peramalan kembali.
+        </div>
+      </div>
+    `;
+    container.innerHTML = html;
+    container.style.display = 'block';
+  } else {
+    container.style.display = 'none';
+    container.innerHTML = '';
+  }
+}
+
 // ─── Eksekusi Peramalan (Run Forecasting) ──────────────────────────────────
 // Mengirim data form konfigurasi peramalan ke backend menggunakan Fetch API (AJAX)
 function runForecasting(e) {
@@ -201,6 +274,8 @@ function runForecasting(e) {
   // Menyembunyikan hasil lama dan status kosong
   document.getElementById('forecast-results-container').style.display = 'none';
   document.getElementById('empty-state-card').style.display = 'none';
+  document.getElementById('warnings-container').style.display = 'none';
+  document.getElementById('warnings-container').innerHTML = '';
 
   // Jalankan animasi jalur proses terlebih dahulu, baru kirim request data
   animatePipeline(() => {
@@ -223,6 +298,9 @@ function runForecasting(e) {
         }
         showToast('❌ ' + res.message, 'error');
         document.getElementById('empty-state-card').style.display = 'block';
+        if (res.warnings && res.warnings.length > 0) {
+          renderWarningsAlert(res.warnings);
+        }
         return;
       }
 
@@ -247,9 +325,9 @@ function displayResults(data, warnings) {
   const maPeriod = parseInt(document.getElementById('ma_period').value);
   
   // Tampilkan peringatan jika ada tipe iPhone yang dilewati karena kekurangan data
+  renderWarningsAlert(warnings);
   if (warnings && warnings.length > 0) {
-    const skippedNames = warnings.map(w => w.nama_tipe).join(', ');
-    showToast('⚠️ Beberapa tipe dilewati (kurang data): ' + skippedNames, 'error');
+    showToast('⚠️ Beberapa tipe dilewati karena data prasyarat kurang/kosong.', 'error');
   } else {
     showToast('✅ Peramalan berhasil dijalankan untuk seluruh model iPhone!', 'success');
   }
@@ -814,6 +892,26 @@ function showToast(msg, type) {
     toast.style.transform = 'translateY(10px)';
   }, 4000);
 }
+
+// Initialize Flatpickr month-only datepicker when the page is loaded
+document.addEventListener("DOMContentLoaded", function() {
+  flatpickr("#bulan_target", {
+    locale: "id",
+    dateFormat: "Y-m",
+    altInput: true,
+    altFormat: "F Y",
+    theme: "dark",
+    disableMobile: "true",
+    plugins: [
+      new monthSelectPlugin({
+        shorthand: false,
+        dateFormat: "Y-m",
+        altFormat: "F Y",
+        theme: "dark"
+      })
+    ]
+  });
+});
 </script>
 
 <?php $this->load->view('partials/footer'); ?>

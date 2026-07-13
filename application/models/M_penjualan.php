@@ -38,10 +38,13 @@ class M_penjualan extends CI_Model {
     }
 
     // Get chronologically sorted monthly sales for a specific iPhone
-    public function get_monthly_sales($id_iphone) {
+    public function get_monthly_sales($id_iphone, $before_month = null) {
         $this->db->select("DATE_FORMAT(tanggal_transaksi, '%Y-%m') as bulan_tahun, SUM(jumlah_terjual) as total_terjual");
         $this->db->from($this->_table);
         $this->db->where('id_iphone', $id_iphone);
+        if ($before_month !== null) {
+            $this->db->where("DATE_FORMAT(tanggal_transaksi, '%Y-%m') <", $before_month);
+        }
         $this->db->group_by("DATE_FORMAT(tanggal_transaksi, '%Y-%m')");
         $this->db->order_by("bulan_tahun", "ASC");
         $query = $this->db->get();
