@@ -525,6 +525,14 @@ function renderChart(data, mode) {
   const threshold_green  = <?= $this->config->item('mape_green') ?>;
   const threshold_yellow = <?= $this->config->item('mape_yellow') ?>;
 
+  const isLight = document.documentElement.classList.contains('light-theme');
+  const textColor = isLight ? '#57606a' : '#8b949e';
+  const gridColor = isLight ? '#e1e4e8' : '#21262d';
+  const tooltipBg = isLight ? '#ffffff' : '#161b22';
+  const tooltipBorder = isLight ? '#d0d7de' : '#30363d';
+  const tooltipTitleColor = isLight ? '#24292f' : '#e6edf3';
+  const tooltipBodyColor = isLight ? '#57606a' : '#8b949e';
+
   const colorPalette = ['#2f81f7', '#3fb950', '#bc8cff', '#ffa657', '#ff7b72', '#79c0ff'];
   const maColorPalette = ['#ffa657', '#ff7b72', '#79c0ff', '#2f81f7', '#3fb950', '#bc8cff'];
 
@@ -668,17 +676,17 @@ function renderChart(data, mode) {
       plugins: {
         legend: {
           labels: {
-            color: '#8b949e',
+            color: textColor,
             font: { family: "'JetBrains Mono', monospace", size: 11 },
             boxWidth: 14
           }
         },
         tooltip: {
-          backgroundColor: '#161b22',
-          borderColor: '#30363d',
+          backgroundColor: tooltipBg,
+          borderColor: tooltipBorder,
           borderWidth: 1,
-          titleColor: '#e6edf3',
-          bodyColor: '#8b949e',
+          titleColor: tooltipTitleColor,
+          bodyColor: tooltipBodyColor,
           callbacks: {
             label: function(context) {
               const v = context.parsed.y;
@@ -689,16 +697,16 @@ function renderChart(data, mode) {
       },
       scales: {
         x: {
-          ticks: { color: '#8b949e', font: { family: "'JetBrains Mono', monospace", size: 10 } },
-          grid: { color: '#21262d' }
+          ticks: { color: textColor, font: { family: "'JetBrains Mono', monospace", size: 10 } },
+          grid: { color: gridColor }
         },
         y: {
           ticks: {
-            color: '#8b949e',
+            color: textColor,
             font: { family: "'JetBrains Mono', monospace", size: 10 },
             callback: v => mode === 'mape' ? v.toFixed(1) + '%' : v.toLocaleString()
           },
-          grid: { color: '#21262d' }
+          grid: { color: gridColor }
         }
       }
     }
@@ -714,6 +722,13 @@ function switchChart(mode, btn) {
     renderChart(lastForecastData, mode); // Gambar ulang grafik dengan filter yang baru
   }
 }
+
+// Redraw chart when theme changes
+window.addEventListener('themeChanged', function() {
+  if (lastForecastData && mainChart) {
+    renderChart(lastForecastData, lastChartMode);
+  }
+});
 
 // ─── Render Rekomendasi Stok & Penjualan (Render Recommendations) ──────────
 // Menyusun peringkat akurasi peramalan serta melampirkan strategi bisnis (stok, penjualan, promo)

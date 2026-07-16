@@ -8,6 +8,14 @@
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap4.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+  (function() {
+    const savedTheme = localStorage.getItem('theme') || 'dark';
+    if (savedTheme === 'light') {
+      document.documentElement.classList.add('light-theme');
+    }
+  })();
+</script>
 <style>
 :root {
   --bg-canvas:   #0d1117;
@@ -33,6 +41,78 @@
   --radius-lg:   10px;
   --font-mono:   'JetBrains Mono', monospace;
   --font-sans:   'Sora', sans-serif;
+}
+
+:root.light-theme {
+  --bg-canvas:   #f6f8fa;
+  --bg-surface:  #ffffff;
+  --bg-elevated: #f0f2f5;
+  --bg-input:    #ffffff;
+  --border:      #d0d7de;
+  --border-muted:#ebf0f4;
+  --text-primary:#24292f;
+  --text-secondary:#57606a;
+  --text-muted:  #8c959f;
+  --accent-blue: #0969da;
+  --accent-blue-subtle:#ddf4ff;
+  --green:       #1a7f37;
+  --green-subtle:#dafbe1;
+  --yellow:      #9a6700;
+  --yellow-subtle:#fff8c5;
+  --red:         #cf222e;
+  --red-subtle:  #ffebe9;
+  --purple:      #8250df;
+  --orange:      #bc4c00;
+}
+
+/* Flatpickr Light/Dark compatibility */
+.flatpickr-calendar {
+  background: var(--bg-surface) !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.15) !important;
+}
+.flatpickr-calendar .flatpickr-months {
+  background: var(--bg-surface) !important;
+}
+.flatpickr-calendar .flatpickr-months .flatpickr-month {
+  background: var(--bg-surface) !important;
+  color: var(--text-primary) !important;
+  fill: var(--text-primary) !important;
+}
+.flatpickr-calendar .flatpickr-current-month {
+  color: var(--text-primary) !important;
+}
+.flatpickr-calendar .flatpickr-current-month .numInputWrapper span.arrowUp::after {
+  border-bottom-color: var(--text-primary) !important;
+}
+.flatpickr-calendar .flatpickr-current-month .numInputWrapper span.arrowDown::after {
+  border-top-color: var(--text-primary) !important;
+}
+.flatpickr-calendar .flatpickr-months .flatpickr-prev-month, 
+.flatpickr-calendar .flatpickr-months .flatpickr-next-month {
+  color: var(--text-primary) !important;
+  fill: var(--text-primary) !important;
+}
+.flatpickr-calendar .flatpickr-months .flatpickr-prev-month:hover svg, 
+.flatpickr-calendar .flatpickr-months .flatpickr-next-month:hover svg {
+  fill: var(--accent-blue) !important;
+}
+.flatpickr-calendar .flatpickr-weekday {
+  color: var(--text-secondary) !important;
+}
+.flatpickr-calendar .flatpickr-day {
+  color: var(--text-primary) !important;
+}
+.flatpickr-calendar .flatpickr-day.prevMonthDay, 
+.flatpickr-calendar .flatpickr-day.nextMonthDay {
+  color: var(--text-muted) !important;
+}
+.flatpickr-calendar .flatpickr-day:hover {
+  background: var(--bg-elevated) !important;
+}
+.flatpickr-calendar .flatpickr-day.selected {
+  background: var(--accent-blue) !important;
+  color: #fff !important;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }

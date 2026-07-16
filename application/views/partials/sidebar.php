@@ -12,7 +12,10 @@
     <span><?= isset($title) ? strtolower(str_replace(' ', '-', $title)) : 'dashboard' ?></span>
   </div>
   <div class="nav-right">
-    <span style="font-size: 12px; color: var(--text-secondary); margin-right: 10px; font-family: var(--font-mono);">
+    <button id="theme-toggle-btn" class="nav-btn" onclick="toggleTheme()" style="padding: 6px; border-radius: 50%; width: 28px; height: 28px; justify-content: center; align-items: center; border-color: var(--border);" title="Ubah Tema">
+      <!-- Icon will be inserted dynamically by JS -->
+    </button>
+    <span style="font-size: 12px; color: var(--text-secondary); margin-right: 10px; font-family: var(--font-mono); display: flex; align-items: center;">
       👤 <?= $this->session->login['username'] ?>
     </span>
     <a href="<?= base_url('logout') ?>" class="nav-btn" style="color: var(--red); border-color: var(--red)44;">
@@ -104,3 +107,36 @@
       <button onclick="this.parentElement.remove()" style="background:none;border:none;color:inherit;cursor:pointer;font-size:16px;font-weight:bold;">✕</button>
     </div>
   <?php endif ?>
+
+<script>
+  function updateThemeButtonVisual(theme) {
+    const btn = document.getElementById('theme-toggle-btn');
+    if (!btn) return;
+    if (theme === 'light') {
+      btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--purple); display: block;"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>`; // Moon icon
+      btn.title = "Ubah ke Mode Gelap";
+    } else {
+      btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--yellow); display: block;"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>`; // Sun icon
+      btn.title = "Ubah ke Mode Terang";
+    }
+  }
+
+  function toggleTheme() {
+    const isLight = document.documentElement.classList.contains('light-theme');
+    if (isLight) {
+      document.documentElement.classList.remove('light-theme');
+      localStorage.setItem('theme', 'dark');
+      updateThemeButtonVisual('dark');
+    } else {
+      document.documentElement.classList.add('light-theme');
+      localStorage.setItem('theme', 'light');
+      updateThemeButtonVisual('light');
+    }
+    window.dispatchEvent(new Event('themeChanged'));
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    const currentTheme = localStorage.getItem('theme') || 'dark';
+    updateThemeButtonVisual(currentTheme);
+  });
+</script>

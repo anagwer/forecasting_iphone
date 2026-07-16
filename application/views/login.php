@@ -6,6 +6,14 @@
 <title>Login — Lestari iPhone Prediksi</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script>
+  (function() {
+    const savedTheme = localStorage.getItem('theme') || 'dark';
+    if (savedTheme === 'light') {
+      document.documentElement.classList.add('light-theme');
+    }
+  })();
+</script>
 <style>
 :root {
   --bg-canvas:   #0d1117;
@@ -22,6 +30,22 @@
   --radius:      6px;
   --radius-lg:   10px;
   --font-sans:   'Sora', sans-serif;
+  --shadow:      0 10px 30px rgba(0, 0, 0, 0.4);
+}
+
+:root.light-theme {
+  --bg-canvas:   #f6f8fa;
+  --bg-surface:  #ffffff;
+  --bg-elevated: #f0f2f5;
+  --border:      #d0d7de;
+  --text-primary:#24292f;
+  --text-secondary:#57606a;
+  --accent-blue: #0969da;
+  --green:       #1a7f37;
+  --green-subtle:#dafbe1;
+  --red:         #cf222e;
+  --red-subtle:  #ffebe9;
+  --shadow:      0 10px 30px rgba(0, 0, 0, 0.08);
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -45,7 +69,7 @@ body {
   width: 400px;
   max-width: 100%;
   padding: 40px 32px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow);
 }
 
 .login-header {
